@@ -53,7 +53,7 @@ const chartOptions = {
   grid: {
     top: 50,
     left: 50,
-    right: 30,
+    right: 90,
     bottom: 40,
   },
   xAxis: {
@@ -92,8 +92,8 @@ const chartOptions = {
 </script>
 
 <template>
-  <section class="chart-card">
-    <h2>Battery State of Charge</h2>
+  <section class="chart-card bg-white">
+    <h2>Battery State of Charge (SoC)</h2>
 
     <VChart
       class="chart"

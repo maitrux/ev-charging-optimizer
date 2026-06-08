@@ -77,7 +77,7 @@ const chartOptions = {
 </script>
 
 <template>
-  <section class="chart-card">
+  <section class="chart-card bg-white">
     <h2>Optimal Charging Schedule</h2>
 
     <VChart
