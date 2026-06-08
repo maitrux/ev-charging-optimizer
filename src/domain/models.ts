@@ -6,6 +6,7 @@ export interface ForecastHour {
 }
 
 export interface Vehicle {
+  name: string;
   batteryCapacity: number;
   currentSoc: number;
   targetSoc: number;

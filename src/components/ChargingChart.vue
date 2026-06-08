@@ -20,7 +20,7 @@ use([
 ]);
 
 const hours = sampleForecast.map((item) =>
-  new Date(item.timestamp).toLocaleTimeString("en-GB", {
+  new Date(item.timestamp).toLocaleTimeString("de-DE", {
     hour: "2-digit",
     minute: "2-digit",
   }),
