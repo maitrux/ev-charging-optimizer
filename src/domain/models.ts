@@ -6,7 +6,7 @@ export interface ForecastHour {
 }
 
 export interface Vehicle {
-  name: string;
+  name?: string | null;
   batteryCapacity: number;
   currentSoc: number;
   targetSoc: number;
@@ -15,6 +15,18 @@ export interface Vehicle {
 }
 
 export interface ScheduleEntry {
-  timestamp: string; // named the attribute 'timestamp' instead of 'hour' since it is a timestamp
+  /**
+   * Start time of the charging slot as an ISO timestamp.
+   * 'hour' would be a better name for this property.
+   */
+  hour: string;
   chargingPower: number;
+}
+
+export interface ScoredForecastHour extends ForecastHour {
+  /**
+   * Effective charging cost used to rank charging opportunities.
+   * Lower values are better.
+   */
+  effectiveCost: number;
 }

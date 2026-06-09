@@ -129,22 +129,22 @@ export const sampleForecast: ForecastHour[] = [
 ];
 
 export const sampleSchedule: ScheduleEntry[] = [
-  { timestamp: "2026-06-10T06:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T07:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T08:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T09:00:00Z", chargingPower: 2.0 },
-  { timestamp: "2026-06-10T10:00:00Z", chargingPower: 5.5 },
-  { timestamp: "2026-06-10T11:00:00Z", chargingPower: 7.4 },
-  { timestamp: "2026-06-10T12:00:00Z", chargingPower: 9.0 },
-  { timestamp: "2026-06-10T13:00:00Z", chargingPower: 9.0 },
-  { timestamp: "2026-06-10T14:00:00Z", chargingPower: 6.0 },
-  { timestamp: "2026-06-10T15:00:00Z", chargingPower: 2.8 },
-  { timestamp: "2026-06-10T16:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T17:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T18:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T19:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T20:00:00Z", chargingPower: 0.0 },
-  { timestamp: "2026-06-10T21:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T06:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T07:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T08:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T09:00:00Z", chargingPower: 2.0 },
+  { hour: "2026-06-10T10:00:00Z", chargingPower: 5.5 },
+  { hour: "2026-06-10T11:00:00Z", chargingPower: 7.4 },
+  { hour: "2026-06-10T12:00:00Z", chargingPower: 9.0 },
+  { hour: "2026-06-10T13:00:00Z", chargingPower: 9.0 },
+  { hour: "2026-06-10T14:00:00Z", chargingPower: 6.0 },
+  { hour: "2026-06-10T15:00:00Z", chargingPower: 2.8 },
+  { hour: "2026-06-10T16:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T17:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T18:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T19:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T20:00:00Z", chargingPower: 0.0 },
+  { hour: "2026-06-10T21:00:00Z", chargingPower: 0.0 },
 ];
 
 export const sampleTargetTime = "2026-06-10T20:30:00Z";
