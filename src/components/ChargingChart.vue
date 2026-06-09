@@ -235,6 +235,7 @@ const chartOptions = computed(() => {
         data: priceData.value,
         smooth: true,
         showSymbol: false,
+        color: "#2196F3",
         lineStyle: { width: 2 },
       },
       {
@@ -245,6 +246,7 @@ const chartOptions = computed(() => {
         data: gridCostData.value,
         smooth: true,
         showSymbol: false,
+        color: "#78909C",
         lineStyle: { type: "dashed", width: 2 },
       },
       {
@@ -254,6 +256,7 @@ const chartOptions = computed(() => {
         yAxisIndex: 1,
         data: solarData.value,
         smooth: true,
+        color: "#FFC107",
       },
       {
         name: "Plug-in Confidence",
@@ -261,6 +264,7 @@ const chartOptions = computed(() => {
         xAxisIndex: 2,
         yAxisIndex: 2,
         data: confidenceData.value,
+        color: "#4CAF50",
         smooth: true,
       },
       {
@@ -269,6 +273,7 @@ const chartOptions = computed(() => {
         xAxisIndex: 3,
         yAxisIndex: 3,
         data: chargingPowerData.value,
+        color: "#7986CB",
       },
       {
         name: "State of Charge",
@@ -277,6 +282,7 @@ const chartOptions = computed(() => {
         yAxisIndex: 4,
         data: socData.value,
         smooth: true,
+        color: "#9C27B0",
         markLine: {
           symbol: "none",
           data: [
