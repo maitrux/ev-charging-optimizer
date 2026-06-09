@@ -1,6 +1,10 @@
-import type { ForecastHour, ScheduleEntry, Vehicle } from "../domain/models";
+import type {
+  ForecastHour,
+  NamedVehicle,
+  ScheduleEntry,
+} from "../domain/models";
 
-export const sampleVehicles: Vehicle[] = [
+export const sampleVehicles: NamedVehicle[] = [
   {
     name: "Tesla Model 3",
     batteryCapacity: 60,

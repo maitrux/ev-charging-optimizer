@@ -6,12 +6,15 @@ export interface ForecastHour {
 }
 
 export interface Vehicle {
-  name?: string | null;
   batteryCapacity: number;
   currentSoc: number;
   targetSoc: number;
   targetTime: string;
   maxChargingPower: number;
+}
+
+export interface NamedVehicle extends Vehicle {
+  name: string;
 }
 
 export interface ScheduleEntry {

@@ -65,11 +65,17 @@ describe("generateChargingSchedule", () => {
     expect(cheapHour?.chargingPower).toBeGreaterThan(0);
   });
 
-  it("ignores hours after target time", () => {
+  it("excludes hours after target time from the schedule", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T12:00:00Z",
         price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T13:00:00Z",
+        price: 0.2,
         solar: 0,
         confidence: 1,
       },
@@ -83,11 +89,16 @@ describe("generateChargingSchedule", () => {
 
     const schedule = generateChargingSchedule(vehicle, forecasts);
 
-    const lateHour = schedule.find(
-      (entry) => entry.hour === "2026-06-10T18:00:00Z",
-    );
+    expect(schedule).toHaveLength(2);
 
-    expect(lateHour?.chargingPower).toBe(0);
+    expect(schedule.map((entry) => entry.hour)).toEqual([
+      "2026-06-10T12:00:00Z",
+      "2026-06-10T13:00:00Z",
+    ]);
+
+    expect(
+      schedule.some((entry) => entry.hour === "2026-06-10T18:00:00Z"),
+    ).toBe(false);
   });
 
   it("allocates enough energy to reach the target", () => {

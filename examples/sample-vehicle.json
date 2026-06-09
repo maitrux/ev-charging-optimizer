@@ -1,0 +1,7 @@
+{
+  "batteryCapacity": 75,
+  "currentSoc": 30,
+  "targetSoc": 80,
+  "targetTime": "2026-06-10T16:00:00Z",
+  "maxChargingPower": 11
+}

@@ -70,7 +70,11 @@ export function generateChargingSchedule(
 ): ScheduleEntry[] {
   let remainingEnergy = calculateRequiredEnergy(vehicle);
 
-  const schedule: ScheduleEntry[] = forecasts.map((forecast) => ({
+  const validForecasts = forecasts.filter((forecast) =>
+    isBeforeTargetTime(forecast, vehicle),
+  );
+
+  const schedule: ScheduleEntry[] = validForecasts.map((forecast) => ({
     hour: forecast.timestamp,
     chargingPower: 0,
   }));
@@ -79,9 +83,9 @@ export function generateChargingSchedule(
     return schedule;
   }
 
-  const rankedForecasts = scoreForecasts(forecasts, vehicle)
-    .filter((forecast) => isBeforeTargetTime(forecast, vehicle))
-    .sort((a, b) => a.effectiveCost - b.effectiveCost);
+  const rankedForecasts = scoreForecasts(validForecasts, vehicle).sort(
+    (a, b) => a.effectiveCost - b.effectiveCost,
+  );
 
   for (const forecast of rankedForecasts) {
     if (remainingEnergy <= 0) {

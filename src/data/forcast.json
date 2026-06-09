@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2026-06-10T10:00:00Z",
+    "price": 0.32,
+    "solar": 0,
+    "confidence": 1.0
+  },
+  {
+    "timestamp": "2026-06-10T11:00:00Z",
+    "price": 0.28,
+    "solar": 2,
+    "confidence": 0.95
+  },
+  {
+    "timestamp": "2026-06-10T12:00:00Z",
+    "price": 0.22,
+    "solar": 5,
+    "confidence": 0.9
+  },
+  {
+    "timestamp": "2026-06-10T13:00:00Z",
+    "price": 0.18,
+    "solar": 8,
+    "confidence": 0.8
+  },
+  {
+    "timestamp": "2026-06-10T14:00:00Z",
+    "price": 0.16,
+    "solar": 11,
+    "confidence": 0.6
+  },
+  {
+    "timestamp": "2026-06-10T15:00:00Z",
+    "price": 0.21,
+    "solar": 7,
+    "confidence": 0.7
+  },
+  {
+    "timestamp": "2026-06-10T16:00:00Z",
+    "price": 0.25,
+    "solar": 4,
+    "confidence": 0.95
+  },
+  {
+    "timestamp": "2026-06-10T17:00:00Z",
+    "price": 0.14,
+    "solar": 1,
+    "confidence": 1.0
+  }
+]

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "cli": "tsx src/cli/index.ts",
     "build": "vue-tsc -b && vite build",
+    "build:cli": "tsc -p tsconfig.cli.json",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui"
@@ -26,6 +28,7 @@
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
+    "tsx": "^4.22.4",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
     "vite-plugin-vuetify": "^2.1.3",
