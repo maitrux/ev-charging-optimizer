@@ -27,7 +27,7 @@ describe("scoreForecastHours", () => {
     expect(benefitFor(forecasts, "2026-06-10T10:00:00Z")).toBe(0);
   });
 
-  it("scales benefit linearly with confidence", () => {
+  it("ranks higher confidence above lower when solar and price are equal", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
@@ -46,7 +46,8 @@ describe("scoreForecastHours", () => {
     const highConfidence = benefitFor(forecasts, "2026-06-10T10:00:00Z");
     const lowConfidence = benefitFor(forecasts, "2026-06-10T11:00:00Z");
 
-    expect(lowConfidence).toBeCloseTo(highConfidence / 2, 5);
+    expect(highConfidence).toBe(1);
+    expect(lowConfidence).toBeLessThan(highConfidence);
   });
 
   it("prefers lower prices when solar is equal", () => {
@@ -91,7 +92,7 @@ describe("scoreForecastHours", () => {
     ).toBeGreaterThan(benefitFor(forecasts, "2026-06-10T10:00:00Z"));
   });
 
-  it("assigns the highest benefit to the cheapest solar-rich hour", () => {
+  it("assigns benefit 1 to the best hour in the horizon", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
@@ -103,19 +104,14 @@ describe("scoreForecastHours", () => {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.3,
         solar: 3,
-        confidence: 1,
+        confidence: 0.7,
       },
     ];
 
     const scored = scoreForecastHours(forecasts);
 
-    expect(scored[1].benefit).toBeGreaterThan(scored[0].benefit);
-    expect(scored[1]).toMatchObject({
-      timestamp: "2026-06-10T11:00:00Z",
-      price: 0.3,
-      solar: 3,
-      confidence: 1,
-    });
+    expect(scored[1].benefit).toBe(1);
+    expect(scored[0].benefit).toBe(0);
   });
 
   it("returns benefit between 0 and 1 inclusive", () => {
@@ -140,7 +136,7 @@ describe("scoreForecastHours", () => {
     }
   });
 
-  it("combines solar and price with multiplication before applying confidence", () => {
+  it("normalizes the solar x price product across the horizon", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
@@ -150,17 +146,27 @@ describe("scoreForecastHours", () => {
       },
       {
         timestamp: "2026-06-10T11:00:00Z",
+        price: 0.2,
+        solar: 22 / 3,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
         price: 0.1,
         solar: 11,
         confidence: 1,
       },
     ];
 
-    const expensiveHour = benefitFor(forecasts, "2026-06-10T10:00:00Z");
-    const cheapSolarHour = benefitFor(forecasts, "2026-06-10T11:00:00Z");
+    const worst = benefitFor(forecasts, "2026-06-10T10:00:00Z");
+    const middle = benefitFor(forecasts, "2026-06-10T11:00:00Z");
+    const best = benefitFor(forecasts, "2026-06-10T12:00:00Z");
 
-    expect(cheapSolarHour).toBe(1);
-    expect(expensiveHour).toBe(0);
+    expect(worst).toBe(0);
+    expect(best).toBe(1);
+    expect(middle).toBeCloseTo(0.5, 5);
+    expect(middle).toBeGreaterThan(worst);
+    expect(middle).toBeLessThan(best);
   });
 
   it("preserves the original forecast fields on each scored hour", () => {

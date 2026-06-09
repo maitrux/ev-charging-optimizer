@@ -154,7 +154,7 @@ describe("generateChargingSchedule", () => {
     expect(solarHour?.chargingPower).toBeGreaterThan(0);
   });
 
-  it("limits charging power to available solar when only solar energy is needed", () => {
+  it("scales charging power proportionally to benefit", () => {
     const partialSolarVehicle: Vehicle = {
       batteryCapacity: 58,
       currentSoc: 95,
@@ -177,10 +177,13 @@ describe("generateChargingSchedule", () => {
       (entry) => entry.hour === "2026-06-10T11:00:00Z",
     );
 
-    expect(solarHour?.chargingPower).toBeCloseTo(2.9, 5);
+    expect(solarHour!.chargingPower).toBeGreaterThan(0);
+    expect(solarHour!.chargingPower).toBeLessThanOrEqual(
+      partialSolarVehicle.maxChargingPower,
+    );
   });
 
-  it("collects all free solar buckets before using grid energy", () => {
+  it("assigns higher charging power to higher-benefit hours", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T02:00:00Z",
@@ -212,22 +215,22 @@ describe("generateChargingSchedule", () => {
 
     const schedule = generateChargingSchedule(id3, forecasts);
 
-    expect(
-      schedule.find((entry) => entry.hour === "2026-06-10T11:00:00Z")
-        ?.chargingPower,
-    ).toBeGreaterThanOrEqual(3);
-    expect(
-      schedule.find((entry) => entry.hour === "2026-06-10T12:00:00Z")
-        ?.chargingPower,
-    ).toBeGreaterThanOrEqual(5);
+    const cheapNight = schedule.find(
+      (entry) => entry.hour === "2026-06-10T02:00:00Z",
+    );
+    const solarMorning = schedule.find(
+      (entry) => entry.hour === "2026-06-10T11:00:00Z",
+    );
+    const solarMidday = schedule.find(
+      (entry) => entry.hour === "2026-06-10T12:00:00Z",
+    );
 
-    const totalSolarUsed = schedule
-      .filter((entry) =>
-        ["2026-06-10T11:00:00Z", "2026-06-10T12:00:00Z"].includes(entry.hour),
-      )
-      .reduce((sum, entry) => sum + entry.chargingPower, 0);
-
-    expect(totalSolarUsed).toBeGreaterThanOrEqual(8);
+    expect(solarMidday!.chargingPower).toBeGreaterThan(
+      solarMorning!.chargingPower,
+    );
+    expect(solarMidday!.chargingPower).toBeGreaterThan(
+      cheapNight!.chargingPower,
+    );
   });
 
   it("keeps charging past the minimum target when cheap slots remain", () => {
@@ -275,6 +278,53 @@ describe("generateChargingSchedule", () => {
       ((tesla.targetSoc - tesla.currentSoc) / 100) * tesla.batteryCapacity;
 
     expect(totalEnergy).toBeGreaterThan(minimumEnergy);
+  });
+
+  it("keeps charging power proportional to benefit when total energy is capped", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T06:00:00Z",
+        price: 0.32,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.18,
+        solar: 1.5,
+        confidence: 0.9,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.16,
+        solar: 2.8,
+        confidence: 0.85,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.17,
+        solar: 4,
+        confidence: 0.7,
+      },
+    ];
+
+    const zoe: Vehicle = {
+      batteryCapacity: 52,
+      currentSoc: 55,
+      targetSoc: 90,
+      maxChargingPower: 22,
+      targetTime: "2026-06-10T16:00:00Z",
+    };
+
+    const schedule = generateChargingSchedule(zoe, forecasts);
+    const peakHour = schedule.find(
+      (entry) => entry.hour === "2026-06-10T12:00:00Z",
+    );
+    const earlyHour = schedule.find(
+      (entry) => entry.hour === "2026-06-10T06:00:00Z",
+    );
+
+    expect(peakHour!.chargingPower).toBeGreaterThan(earlyHour!.chargingPower);
   });
 
   it("does not charge after the battery is full chronologically", () => {

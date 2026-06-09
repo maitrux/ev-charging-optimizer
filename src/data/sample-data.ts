@@ -3,6 +3,14 @@ import forecastData from "./forcast.json";
 
 export const sampleVehicles: NamedVehicle[] = [
   {
+    name: "Example Zählerfreunde Vehicle",
+    batteryCapacity: 78,
+    currentSoc: 40,
+    targetSoc: 70,
+    maxChargingPower: 9,
+    targetTime: "2026-06-10T18:00:00Z",
+  },
+  {
     name: "Tesla Model 3",
     batteryCapacity: 60,
     currentSoc: 40,
@@ -25,14 +33,6 @@ export const sampleVehicles: NamedVehicle[] = [
     targetSoc: 90,
     maxChargingPower: 22,
     targetTime: "2026-06-10T16:00:00Z",
-  },
-  {
-    name: "Example Zählerfreunde Vehicle",
-    batteryCapacity: 78,
-    currentSoc: 40,
-    targetSoc: 70,
-    maxChargingPower: 9,
-    targetTime: "2026-06-10T18:00:00Z",
   },
 ];
 

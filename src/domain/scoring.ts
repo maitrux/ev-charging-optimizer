@@ -16,7 +16,7 @@ export function scoreForecastHours(
   const minSolar = Math.min(...solars);
   const maxSolar = Math.max(...solars);
 
-  return forecasts.map((forecast) => {
+  const rawSums = forecasts.map((forecast) => {
     const normalizedSolarPower = normalize(forecast.solar, minSolar, maxSolar);
 
     const reversedPrice = minPrice + maxPrice - forecast.price;
@@ -27,13 +27,26 @@ export function scoreForecastHours(
       maxPrice,
     );
 
-    const normalizedSum =
-      normalizedSolarPower * reversedAndNormalizedPrice;
+    return normalizedSolarPower * reversedAndNormalizedPrice;
+  });
 
-    const benefit = Math.min(
-      1,
-      Math.max(0, normalizedSum * forecast.confidence),
-    );
+  const minSum = Math.min(...rawSums);
+  const maxSum = Math.max(...rawSums);
+
+  const rawBenefits = forecasts.map((forecast, index) => {
+    const normalizedSum = normalize(rawSums[index], minSum, maxSum);
+
+    return normalizedSum * forecast.confidence;
+  });
+
+  const minBenefit = Math.min(...rawBenefits);
+  const maxBenefit = Math.max(...rawBenefits);
+
+  return forecasts.map((forecast, index) => {
+    const benefit =
+      maxBenefit === 0
+        ? 0
+        : normalize(rawBenefits[index], minBenefit, maxBenefit);
 
     return {
       ...forecast,
