@@ -16,7 +16,7 @@ export const sampleVehicles: NamedVehicle[] = [
     currentSoc: 25,
     targetSoc: 80,
     maxChargingPower: 7.4,
-    targetTime: "2026-06-10T13:00:00Z",
+    targetTime: "2026-06-10T16:00:00Z",
   },
   {
     name: "Renault Zoe",
