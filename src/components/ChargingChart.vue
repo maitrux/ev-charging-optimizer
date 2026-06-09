@@ -14,6 +14,7 @@ import VChart from "vue-echarts";
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
+import { calculateGridCostPerKwh } from "../domain/scoring";
 import CreateVehicleDialog from "./CreateVehicleDialog.vue";
 
 use([
@@ -104,6 +105,13 @@ const chargingPowerData = computed(() =>
 const priceData = computed(() =>
   activeForecast.value.map((item) => item.price),
 );
+const gridCostData = computed(() =>
+  activeForecast.value.map((item) => {
+    const cost = calculateGridCostPerKwh(item);
+
+    return Number.isFinite(cost) ? Number(cost.toFixed(4)) : null;
+  }),
+);
 const solarData = computed(() =>
   activeForecast.value.map((item) => item.solar),
 );
@@ -133,6 +141,38 @@ const chartOptions = computed(() => {
   return {
     tooltip: {
       trigger: "axis",
+      formatter: (params: unknown) => {
+        if (!Array.isArray(params) || params.length === 0) return "";
+
+        const index = params[0]?.dataIndex ?? 0;
+        const forecast = activeForecast.value[index];
+
+        if (!forecast) return "";
+
+        const hour = hours.value[index];
+        const gridCost = calculateGridCostPerKwh(forecast);
+        const gridCostLabel = Number.isFinite(gridCost)
+          ? `${gridCost.toFixed(3)} €/kWh`
+          : "n/a";
+
+        const lines = [
+          `<strong>${hour}</strong>`,
+          `Price: ${forecast.price.toFixed(2)} €/kWh`,
+          `Grid cost (price ÷ confidence): ${gridCostLabel}`,
+          `Solar: ${forecast.solar.toFixed(1)} kWh`,
+          `Plug-in confidence: ${(forecast.confidence * 100).toFixed(0)}%`,
+        ];
+
+        for (const param of params) {
+          const value = param.value;
+
+          if (value === null || value === undefined) continue;
+
+          lines.push(`${param.marker} ${param.seriesName}: ${value}`);
+        }
+
+        return lines.join("<br/>");
+      },
     },
     legend: {
       top: 0,
@@ -194,6 +234,18 @@ const chartOptions = computed(() => {
         yAxisIndex: 0,
         data: priceData.value,
         smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2 },
+      },
+      {
+        name: "Grid cost",
+        type: "line",
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: gridCostData.value,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { type: "dashed", width: 2 },
       },
       {
         name: "Solar",
