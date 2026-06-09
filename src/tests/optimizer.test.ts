@@ -11,14 +11,14 @@ const vehicle: Vehicle = {
 };
 
 describe("generateChargingSchedule", () => {
-  it("returns empty charging schedule when target SoC is already reached", () => {
-    const satisfiedVehicle: Vehicle = {
+  it("returns empty charging schedule when the battery is already full", () => {
+    const fullBattery: Vehicle = {
       ...vehicle,
-      currentSoc: 80,
+      currentSoc: 100,
       targetSoc: 80,
     };
 
-    const result = generateChargingSchedule(satisfiedVehicle, []);
+    const result = generateChargingSchedule(fullBattery, []);
 
     expect(result).toEqual([]);
   });
@@ -101,7 +101,7 @@ describe("generateChargingSchedule", () => {
     ).toBe(false);
   });
 
-  it("allocates enough energy to reach the target", () => {
+  it("allocates at least enough energy to reach the minimum target SoC", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
@@ -123,8 +123,10 @@ describe("generateChargingSchedule", () => {
       (sum, entry) => sum + entry.chargingPower,
       0,
     );
+    const requiredEnergy =
+      ((vehicle.targetSoc - vehicle.currentSoc) / 100) * vehicle.batteryCapacity;
 
-    expect(totalEnergy).toBe(22);
+    expect(totalEnergy).toBeGreaterThanOrEqual(requiredEnergy);
   });
 
   it("prefers a solar-rich charging opportunity", () => {
@@ -152,11 +154,108 @@ describe("generateChargingSchedule", () => {
     expect(solarHour?.chargingPower).toBeGreaterThan(0);
   });
 
+  it("keeps charging past the minimum target when cheap slots remain", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.16,
+        solar: 2.8,
+        confidence: 0.85,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.17,
+        solar: 4,
+        confidence: 0.7,
+      },
+      {
+        timestamp: "2026-06-10T13:00:00Z",
+        price: 0.21,
+        solar: 4.5,
+        confidence: 0.6,
+      },
+      {
+        timestamp: "2026-06-10T14:00:00Z",
+        price: 0.27,
+        solar: 3.2,
+        confidence: 0.7,
+      },
+    ];
+
+    const tesla: Vehicle = {
+      batteryCapacity: 60,
+      currentSoc: 40,
+      targetSoc: 70,
+      maxChargingPower: 11,
+      targetTime: "2026-06-10T20:30:00Z",
+    };
+
+    const schedule = generateChargingSchedule(tesla, forecasts);
+    const totalEnergy = schedule.reduce(
+      (sum, entry) => sum + entry.chargingPower,
+      0,
+    );
+    const minimumEnergy =
+      ((tesla.targetSoc - tesla.currentSoc) / 100) * tesla.batteryCapacity;
+
+    expect(totalEnergy).toBeGreaterThan(minimumEnergy);
+  });
+
+  it("does not charge after the battery is full chronologically", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+    ];
+
+    const smallBatteryVehicle: Vehicle = {
+      batteryCapacity: 20,
+      currentSoc: 50,
+      targetSoc: 70,
+      maxChargingPower: 10,
+      targetTime: "2026-06-10T13:00:00Z",
+    };
+
+    const schedule = generateChargingSchedule(smallBatteryVehicle, forecasts);
+    let currentEnergy =
+      (smallBatteryVehicle.currentSoc / 100) *
+      smallBatteryVehicle.batteryCapacity;
+    let batteryFull = false;
+
+    for (const entry of schedule) {
+      if (batteryFull) {
+        expect(entry.chargingPower).toBe(0);
+        continue;
+      }
+
+      currentEnergy += entry.chargingPower;
+
+      if (currentEnergy >= smallBatteryVehicle.batteryCapacity) {
+        batteryFull = true;
+      }
+    }
+  });
+
   it("prefers a more reliable charging opportunity", () => {
     const oneSlotVehicle: Vehicle = {
       ...vehicle,
-      currentSoc: 50,
-      targetSoc: 61, // 11 kWh needed for a 100 kWh battery
+      currentSoc: 89, // only 11 kWh of room left to reach 100%
+      targetSoc: 80,
     };
 
     const forecasts: ForecastHour[] = [

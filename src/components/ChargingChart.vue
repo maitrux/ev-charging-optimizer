@@ -60,8 +60,17 @@ const targetTimeIndex = computed(() => {
   return closestIndex === -1 ? sampleForecast.length - 1 : closestIndex;
 });
 
+const scheduleByHour = computed(
+  () =>
+    new Map(
+      schedule.value.map((entry) => [entry.hour, entry.chargingPower]),
+    ),
+);
+
 const chargingPowerData = computed(() =>
-  schedule.value.map((item) => item.chargingPower),
+  sampleForecast.map(
+    (forecast) => scheduleByHour.value.get(forecast.timestamp) ?? 0,
+  ),
 );
 const priceData = sampleForecast.map((item) => item.price);
 const solarData = sampleForecast.map((item) => item.solar);
@@ -74,8 +83,8 @@ const socData = computed(() => {
     selectedVehicle.value.batteryCapacity *
     (selectedVehicle.value.currentSoc / 100);
 
-  return schedule.value.map((entry) => {
-    currentEnergy += entry.chargingPower;
+  return sampleForecast.map((forecast) => {
+    currentEnergy += scheduleByHour.value.get(forecast.timestamp) ?? 0;
 
     const soc = (currentEnergy / selectedVehicle.value!.batteryCapacity) * 100;
 

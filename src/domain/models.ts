@@ -6,10 +6,15 @@ export interface ForecastHour {
 }
 
 export interface Vehicle {
+  /** Maximum battery capacity in kWh. */
   batteryCapacity: number;
+  /** Starting state of charge in percent. */
   currentSoc: number;
+  /** Minimum required state of charge in percent by target time. Charging may continue beyond this when prices are favorable, up to 100%. */
   targetSoc: number;
+  /** Time by which targetSoc must be reached. */
   targetTime: string;
+  /** Maximum charging power in kW. */
   maxChargingPower: number;
 }
 

@@ -3,38 +3,23 @@ import { scoreForecasts } from "./scoring";
 
 /**
  * Converts a state of charge percentage into stored battery energy.
- *
- * @param soc State of charge in percent.
- * @param batteryCapacity Battery capacity in kWh.
- * @returns Stored battery energy in kWh.
  */
 function socToEnergy(soc: number, batteryCapacity: number): number {
   return (soc / 100) * batteryCapacity;
 }
 
 /**
- * Calculates how much additional energy is required to reach the target SoC.
- *
- * @param vehicle Vehicle data.
- * @returns Required charging energy in kWh.
+ * How much more energy can fit in the battery (up to 100% SoC).
  */
-function calculateRequiredEnergy(vehicle: Vehicle): number {
+function calculateAvailableChargeEnergy(vehicle: Vehicle): number {
   const currentEnergy = socToEnergy(
     vehicle.currentSoc,
     vehicle.batteryCapacity,
   );
-  const targetEnergy = socToEnergy(vehicle.targetSoc, vehicle.batteryCapacity);
 
-  return Math.max(targetEnergy - currentEnergy, 0);
+  return Math.max(vehicle.batteryCapacity - currentEnergy, 0);
 }
 
-/**
- * Checks whether a forecast hour can be used for charging.
- *
- * @param forecast Forecast data for one time slot.
- * @param vehicle Vehicle data.
- * @returns True if the forecast is before or equal to the target time.
- */
 function isBeforeTargetTime(forecast: ForecastHour, vehicle: Vehicle): boolean {
   return (
     new Date(forecast.timestamp).getTime() <=
@@ -45,30 +30,20 @@ function isBeforeTargetTime(forecast: ForecastHour, vehicle: Vehicle): boolean {
 /**
  * Generates an optimized charging schedule.
  *
+ * Target SoC is the minimum that must be reachable by target time.
+ * When cheap slots remain, the algorithm keeps charging up to 100%.
+ *
  * Strategy:
- * 1. Calculate the energy required to reach the target SoC.
- * 2. Calculate an effective cost for each forecast hour.
- * 3. Rank hours by effective cost.
- * 4. Allocate charging greedily until the required energy is scheduled.
- *
- * Effective cost combines:
- * - electricity price
- * - local solar production
- * - plug-in confidence
- *
- * Lower effective cost means a more attractive charging opportunity.
- *
- * @param vehicle Vehicle data and charging target.
- * @param forecasts Forecast data for the planning horizon.
- * @param slotDurationHours Duration of one forecast slot in hours.
- * @returns Optimized charging schedule.
+ * 1. Rank hours before target time by effective cost.
+ * 2. Greedily fill the cheapest slots until the battery is full or slots run out.
+ * 3. Apply the result in time order without exceeding battery capacity.
  */
 export function generateChargingSchedule(
   vehicle: Vehicle,
   forecasts: ForecastHour[],
   slotDurationHours = 1,
 ): ScheduleEntry[] {
-  let remainingEnergy = calculateRequiredEnergy(vehicle);
+  let remainingEnergy = calculateAvailableChargeEnergy(vehicle);
 
   const validForecasts = forecasts.filter((forecast) =>
     isBeforeTargetTime(forecast, vehicle),
@@ -106,7 +81,42 @@ export function generateChargingSchedule(
     remainingEnergy -= energyToCharge;
   }
 
-  return schedule.sort(
+  const chronologicalSchedule = schedule.sort(
     (a, b) => new Date(a.hour).getTime() - new Date(b.hour).getTime(),
   );
+
+  return enforceBatteryCapacity(
+    vehicle,
+    chronologicalSchedule,
+    slotDurationHours,
+  );
+}
+
+/**
+ * Applies charging in time order and stops once the battery is full.
+ */
+function enforceBatteryCapacity(
+  vehicle: Vehicle,
+  schedule: ScheduleEntry[],
+  slotDurationHours: number,
+): ScheduleEntry[] {
+  let currentEnergy = socToEnergy(
+    vehicle.currentSoc,
+    vehicle.batteryCapacity,
+  );
+
+  return schedule.map((entry) => {
+    if (currentEnergy >= vehicle.batteryCapacity) {
+      return { ...entry, chargingPower: 0 };
+    }
+
+    const remainingEnergy = vehicle.batteryCapacity - currentEnergy;
+    const maxEnergyThisSlot = entry.chargingPower * slotDurationHours;
+    const energyToApply = Math.min(maxEnergyThisSlot, remainingEnergy);
+    const chargingPower = energyToApply / slotDurationHours;
+
+    currentEnergy += energyToApply;
+
+    return { ...entry, chargingPower };
+  });
 }

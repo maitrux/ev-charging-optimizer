@@ -8,7 +8,7 @@ export const sampleVehicles: NamedVehicle[] = [
     currentSoc: 40,
     targetSoc: 70,
     maxChargingPower: 11,
-    targetTime: "2026-06-10T20:30:00Z",
+    targetTime: "2026-06-10T12:00:00Z",
   },
   {
     name: "Volkswagen ID.3",
@@ -16,7 +16,7 @@ export const sampleVehicles: NamedVehicle[] = [
     currentSoc: 25,
     targetSoc: 80,
     maxChargingPower: 7.4,
-    targetTime: "2026-06-10T19:00:00Z",
+    targetTime: "2026-06-10T13:00:00Z",
   },
   {
     name: "Renault Zoe",
@@ -24,7 +24,7 @@ export const sampleVehicles: NamedVehicle[] = [
     currentSoc: 55,
     targetSoc: 90,
     maxChargingPower: 22,
-    targetTime: "2026-06-10T18:00:00Z",
+    targetTime: "2026-06-10T16:00:00Z",
   },
 ];
 
