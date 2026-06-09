@@ -12,7 +12,7 @@ import { computed, ref } from "vue";
 import VChart from "vue-echarts";
 
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
-import type { NamedVehicle } from "../domain/models";
+import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
 import CreateVehicleDialog from "./CreateVehicleDialog.vue";
 
@@ -29,6 +29,37 @@ use([
 const vehicles = ref<NamedVehicle[]>([...sampleVehicles]);
 const selectedVehicleName = ref(vehicles.value[0].name);
 
+type ForecastSource = "default" | "uploaded";
+
+const selectedForecastSource = ref<ForecastSource>("default");
+const uploadedForecast = ref<ForecastHour[] | null>(null);
+const uploadedForecastName = ref<string | null>(null);
+const forecastUploadError = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const forecastSourceOptions = computed(() => {
+  const options: { title: string; value: ForecastSource }[] = [
+    { title: "Default forecast", value: "default" },
+  ];
+
+  if (uploadedForecast.value) {
+    options.push({
+      title: uploadedForecastName.value ?? "Uploaded forecast",
+      value: "uploaded",
+    });
+  }
+
+  return options;
+});
+
+const activeForecast = computed(() => {
+  if (selectedForecastSource.value === "uploaded" && uploadedForecast.value) {
+    return uploadedForecast.value;
+  }
+
+  return sampleForecast;
+});
+
 const selectedVehicle = computed(() =>
   vehicles.value.find((vehicle) => vehicle.name === selectedVehicleName.value),
 );
@@ -36,11 +67,11 @@ const selectedVehicle = computed(() =>
 const schedule = computed(() => {
   if (!selectedVehicle.value) return [];
 
-  return generateChargingSchedule(selectedVehicle.value, sampleForecast);
+  return generateChargingSchedule(selectedVehicle.value, activeForecast.value);
 });
 
 const hours = computed(() =>
-  sampleForecast.map((item) =>
+  activeForecast.value.map((item) =>
     new Date(item.timestamp).toLocaleTimeString("de-DE", {
       hour: "2-digit",
       minute: "2-digit",
@@ -53,28 +84,32 @@ const targetTimeIndex = computed(() => {
 
   const targetTime = new Date(selectedVehicle.value.targetTime).getTime();
 
-  const closestIndex = sampleForecast.findIndex(
+  const closestIndex = activeForecast.value.findIndex(
     (forecast) => new Date(forecast.timestamp).getTime() >= targetTime,
   );
 
-  return closestIndex === -1 ? sampleForecast.length - 1 : closestIndex;
+  return closestIndex === -1 ? activeForecast.value.length - 1 : closestIndex;
 });
 
 const scheduleByHour = computed(
   () =>
-    new Map(
-      schedule.value.map((entry) => [entry.hour, entry.chargingPower]),
-    ),
+    new Map(schedule.value.map((entry) => [entry.hour, entry.chargingPower])),
 );
 
 const chargingPowerData = computed(() =>
-  sampleForecast.map(
+  activeForecast.value.map(
     (forecast) => scheduleByHour.value.get(forecast.timestamp) ?? 0,
   ),
 );
-const priceData = sampleForecast.map((item) => item.price);
-const solarData = sampleForecast.map((item) => item.solar);
-const confidenceData = sampleForecast.map((item) => item.confidence);
+const priceData = computed(() =>
+  activeForecast.value.map((item) => item.price),
+);
+const solarData = computed(() =>
+  activeForecast.value.map((item) => item.solar),
+);
+const confidenceData = computed(() =>
+  activeForecast.value.map((item) => item.confidence),
+);
 
 const socData = computed(() => {
   if (!selectedVehicle.value) return [];
@@ -83,7 +118,7 @@ const socData = computed(() => {
     selectedVehicle.value.batteryCapacity *
     (selectedVehicle.value.currentSoc / 100);
 
-  return sampleForecast.map((forecast) => {
+  return activeForecast.value.map((forecast) => {
     currentEnergy += scheduleByHour.value.get(forecast.timestamp) ?? 0;
 
     const soc = (currentEnergy / selectedVehicle.value!.batteryCapacity) * 100;
@@ -103,11 +138,11 @@ const chartOptions = computed(() => {
       top: 0,
     },
     grid: [
-      { top: 60, height: 90, left: 60, right: 40 },
-      { top: 190, height: 90, left: 60, right: 40 },
-      { top: 320, height: 90, left: 60, right: 40 },
-      { top: 450, height: 90, left: 60, right: 40 },
-      { top: 580, height: 90, left: 60, right: 40 },
+      { top: 60, height: 90, left: 60, right: 120 },
+      { top: 190, height: 90, left: 60, right: 120 },
+      { top: 320, height: 90, left: 60, right: 120 },
+      { top: 450, height: 90, left: 60, right: 120 },
+      { top: 580, height: 90, left: 60, right: 120 },
     ],
     xAxis: Array.from({ length: 5 }, (_, index) => ({
       type: "category",
@@ -157,7 +192,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 0,
         yAxisIndex: 0,
-        data: priceData,
+        data: priceData.value,
         smooth: true,
       },
       {
@@ -165,7 +200,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 1,
         yAxisIndex: 1,
-        data: solarData,
+        data: solarData.value,
         smooth: true,
       },
       {
@@ -173,7 +208,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 2,
         yAxisIndex: 2,
-        data: confidenceData,
+        data: confidenceData.value,
         smooth: true,
       },
       {
@@ -197,7 +232,7 @@ const chartOptions = computed(() => {
               yAxis: selectedVehicle.value.targetSoc,
               name: "Target SoC",
               label: {
-                formatter: `Target ${selectedVehicle.value.targetSoc}%`,
+                formatter: `Target SoC ${selectedVehicle.value.targetSoc}%`,
               },
             },
             {
@@ -219,6 +254,64 @@ function addVehicle(vehicle: NamedVehicle) {
   selectedVehicleName.value = vehicle.name;
 }
 
+function isForecastHour(value: unknown): value is ForecastHour {
+  if (typeof value !== "object" || value === null) return false;
+
+  const entry = value as Record<string, unknown>;
+
+  return (
+    typeof entry.timestamp === "string" &&
+    typeof entry.price === "number" &&
+    typeof entry.solar === "number" &&
+    typeof entry.confidence === "number"
+  );
+}
+
+function parseForecastFile(content: string): ForecastHour[] {
+  const parsed: unknown = JSON.parse(content);
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("Forecast file must be a non-empty JSON array.");
+  }
+
+  if (!parsed.every(isForecastHour)) {
+    throw new Error(
+      "Each entry must include timestamp, price, solar, and confidence.",
+    );
+  }
+
+  return parsed;
+}
+
+function openForecastUpload() {
+  fileInputRef.value?.click();
+}
+
+async function handleForecastUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+
+  input.value = "";
+
+  if (!file) return;
+
+  forecastUploadError.value = null;
+
+  try {
+    const content = await file.text();
+    uploadedForecast.value = parseForecastFile(content);
+    uploadedForecastName.value = file.name;
+    selectedForecastSource.value = "uploaded";
+  } catch (error) {
+    uploadedForecast.value = null;
+    uploadedForecastName.value = null;
+    selectedForecastSource.value = "default";
+
+    forecastUploadError.value =
+      error instanceof Error ? error.message : "Could not read forecast file.";
+  }
+}
+
 function mapUTCToLocalDateTime(utcTime: string) {
   return new Date(utcTime).toLocaleString("de-DE", {
     dateStyle: "short",
@@ -230,25 +323,80 @@ function mapUTCToLocalDateTime(utcTime: string) {
 <template>
   <section class="chart-card bg-white">
     <div class="chart-header">
-      <h2>Example Optimal Charging Schedule</h2>
+      <h2>Optimal Charging Schedule</h2>
 
       <div class="actions">
-        <v-select
-          v-model="selectedVehicleName"
-          :items="vehicles.map((vehicle) => vehicle.name)"
-          label="Vehicle"
-          density="compact"
-          variant="outlined"
-          hide-details
-          class="vehicle-select"
-        />
+        <div class="action-group">
+          <v-select
+            v-model="selectedForecastSource"
+            :items="forecastSourceOptions"
+            item-title="title"
+            item-value="value"
+            label="Forecast"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="forecast-select"
+          />
 
-        <CreateVehicleDialog
-          :existing-vehicle-names="vehicles.map((vehicle) => vehicle.name)"
-          @create="addVehicle"
-        />
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".json,application/json"
+            hidden
+            @change="handleForecastUpload"
+          />
+
+          <v-btn
+            variant="flat"
+            color="teal"
+            @click="openForecastUpload"
+          >
+            <v-icon start>mdi-upload</v-icon>
+            Upload JSON
+          </v-btn>
+        </div>
+
+        <div class="action-group">
+          <v-select
+            v-model="selectedVehicleName"
+            :items="vehicles.map((vehicle) => vehicle.name)"
+            label="Vehicle"
+            density="compact"
+            variant="outlined"
+            hide-details
+            class="vehicle-select"
+          />
+
+          <CreateVehicleDialog
+            :existing-vehicle-names="vehicles.map((vehicle) => vehicle.name)"
+            @create="addVehicle"
+          />
+        </div>
       </div>
     </div>
+
+    <v-alert
+      v-if="forecastUploadError"
+      type="error"
+      variant="tonal"
+      class="mt-4"
+      closable
+      @click:close="forecastUploadError = null"
+    >
+      {{ forecastUploadError }}
+    </v-alert>
+
+    <v-alert
+      v-else-if="selectedForecastSource === 'uploaded' && uploadedForecast"
+      color="success"
+      variant="tonal"
+      class="mt-4"
+      density="compact"
+    >
+      Using uploaded forecast
+      <strong>{{ uploadedForecastName }}</strong>
+    </v-alert>
 
     <v-alert
       v-if="selectedVehicle"
@@ -296,12 +444,21 @@ function mapUTCToLocalDateTime(utcTime: string) {
 
 .actions {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 1.25rem;
+  flex-wrap: wrap;
 }
 
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.forecast-select,
 .vehicle-select {
-  width: 240px;
+  width: 220px;
 }
 
 .chart {
