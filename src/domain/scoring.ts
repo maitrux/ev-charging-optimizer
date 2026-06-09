@@ -28,7 +28,7 @@ export function scoreForecastHours(
     );
 
     const normalizedSum =
-      (normalizedSolarPower + reversedAndNormalizedPrice) / 2;
+      normalizedSolarPower * reversedAndNormalizedPrice;
 
     const benefit = Math.min(
       1,

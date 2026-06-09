@@ -140,6 +140,29 @@ describe("scoreForecastHours", () => {
     }
   });
 
+  it("combines solar and price with multiplication before applying confidence", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.5,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.1,
+        solar: 11,
+        confidence: 1,
+      },
+    ];
+
+    const expensiveHour = benefitFor(forecasts, "2026-06-10T10:00:00Z");
+    const cheapSolarHour = benefitFor(forecasts, "2026-06-10T11:00:00Z");
+
+    expect(cheapSolarHour).toBe(1);
+    expect(expensiveHour).toBe(0);
+  });
+
   it("preserves the original forecast fields on each scored hour", () => {
     const forecast: ForecastHour = {
       timestamp: "2026-06-10T11:00:00Z",

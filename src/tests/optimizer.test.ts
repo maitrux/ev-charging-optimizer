@@ -337,7 +337,7 @@ describe("generateChargingSchedule", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
-        price: 0.1,
+        price: 0.15,
         solar: 0,
         confidence: 0.1,
       },

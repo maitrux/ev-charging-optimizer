@@ -25,6 +25,13 @@ function totalScheduledPower(scheduleByHour: Map<string, number>): number {
   return total;
 }
 
+function bucketPower(
+  vehicle: Vehicle,
+  benefit: number,
+): number {
+  return clamp(vehicle.maxChargingPower * benefit, 0, vehicle.maxChargingPower);
+}
+
 export function generateChargingSchedule(
   vehicle: Vehicle,
   forecasts: ForecastHour[],
@@ -36,59 +43,26 @@ export function generateChargingSchedule(
   );
 
   const scoredHours = scoreForecastHours(usableForecasts);
-
   const availableCapacity = getAvailableCapacityKwh(vehicle);
 
   if (availableCapacity <= 0) {
     return [];
   }
 
-  // targetSoc is the minimum that must be reachable; keep allocating by benefit up to 100%.
-  let remainingEnergy = availableCapacity;
-
-  const scheduleByHour = new Map<string, number>();
-
-  for (const hour of scoredHours) {
-    const suggestedPower = vehicle.maxChargingPower * hour.benefit;
-
-    scheduleByHour.set(
-      hour.timestamp,
-      clamp(suggestedPower, 0, vehicle.maxChargingPower),
-    );
-  }
-
   const sortedByBenefit = [...scoredHours].sort(
     (a, b) => b.benefit - a.benefit,
   );
 
-  for (const hour of sortedByBenefit) {
-    if (remainingEnergy <= 0) {
-      scheduleByHour.set(hour.timestamp, 0);
-      continue;
-    }
-
-    const bucketPower = scheduleByHour.get(hour.timestamp) ?? 0;
-
-    const chargingPower = clamp(
-      Math.min(bucketPower, remainingEnergy),
-      0,
-      vehicle.maxChargingPower,
-    );
-
-    scheduleByHour.set(hour.timestamp, chargingPower);
-
-    remainingEnergy -= chargingPower;
-  }
-
-  let shortfall = availableCapacity - totalScheduledPower(scheduleByHour);
+  const scheduleByHour = new Map(
+    scoredHours.map((hour) => [
+      hour.timestamp,
+      bucketPower(vehicle, hour.benefit),
+    ]),
+  );
 
   for (const hour of sortedByBenefit) {
-    let current = scheduleByHour.get(hour.timestamp) ?? 0;
-    let room = vehicle.maxChargingPower - current;
-
-    if (room <= 0) {
-      continue;
-    }
+    let power = scheduleByHour.get(hour.timestamp) ?? 0;
+    let room = vehicle.maxChargingPower - power;
 
     for (const donor of [...sortedByBenefit].reverse()) {
       if (room <= 0) {
@@ -103,14 +77,14 @@ export function generateChargingSchedule(
       const move = Math.min(donorPower, room);
 
       scheduleByHour.set(donor.timestamp, donorPower - move);
-      current += move;
+      power += move;
       room -= move;
     }
 
-    scheduleByHour.set(hour.timestamp, current);
+    scheduleByHour.set(hour.timestamp, power);
   }
 
-  shortfall = availableCapacity - totalScheduledPower(scheduleByHour);
+  let shortfall = availableCapacity - totalScheduledPower(scheduleByHour);
 
   for (const hour of sortedByBenefit) {
     if (shortfall <= 0) {
@@ -118,16 +92,24 @@ export function generateChargingSchedule(
     }
 
     const current = scheduleByHour.get(hour.timestamp) ?? 0;
-    const room = vehicle.maxChargingPower - current;
-
-    if (room <= 0) {
-      continue;
-    }
-
-    const add = Math.min(room, shortfall);
+    const add = Math.min(vehicle.maxChargingPower - current, shortfall);
 
     scheduleByHour.set(hour.timestamp, current + add);
     shortfall -= add;
+  }
+
+  let overflow = totalScheduledPower(scheduleByHour) - availableCapacity;
+
+  for (const hour of [...sortedByBenefit].reverse()) {
+    if (overflow <= 0) {
+      break;
+    }
+
+    const current = scheduleByHour.get(hour.timestamp) ?? 0;
+    const remove = Math.min(current, overflow);
+
+    scheduleByHour.set(hour.timestamp, current - remove);
+    overflow -= remove;
   }
 
   return scoredHours
