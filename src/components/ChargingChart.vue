@@ -14,6 +14,7 @@ import VChart from "vue-echarts";
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
+import { calculateScheduleCost } from "../domain/schedule-cost";
 import { scoreForecastHours } from "../domain/scoring";
 import CreateVehicleDialog from "./CreateVehicleDialog.vue";
 
@@ -70,6 +71,11 @@ const schedule = computed(() => {
 
   return generateChargingSchedule(selectedVehicle.value, activeForecast.value);
 });
+
+// COMPARISON ONLY — remove before merge
+const scheduleCost = computed(() =>
+  calculateScheduleCost(schedule.value, activeForecast.value),
+);
 
 const hours = computed(() =>
   activeForecast.value.map((item) =>
@@ -187,7 +193,9 @@ const chartOptions = computed(() => {
           if (value === null || value === undefined) continue;
 
           if (param.seriesName === "Benefit") {
-            lines.push(`${param.marker} ${param.seriesName}: ${Number(value).toFixed(2)}`);
+            lines.push(
+              `${param.marker} ${param.seriesName}: ${Number(value).toFixed(2)}`,
+            );
             continue;
           }
 
@@ -526,6 +534,25 @@ function mapUTCToLocalDateTime(utcTime: string) {
       <p>
         <strong>Target time:</strong>
         {{ mapUTCToLocalDateTime(selectedVehicle.targetTime) }}
+      </p>
+    </v-alert>
+
+    <v-alert
+      v-if="selectedVehicle && schedule.length > 0"
+      color="warning"
+      variant="tonal"
+      class="mt-4"
+      density="compact"
+    >
+      <p>
+        <strong>Estimated charging cost:</strong>
+        {{ scheduleCost.totalCostEur.toFixed(2) }} €
+      </p>
+      <p>
+        {{ scheduleCost.totalEnergyKwh.toFixed(1) }} kWh total ({{
+          scheduleCost.solarEnergyKwh.toFixed(1)
+        }}
+        solar, {{ scheduleCost.gridEnergyKwh.toFixed(1) }} grid)
       </p>
     </v-alert>
 
