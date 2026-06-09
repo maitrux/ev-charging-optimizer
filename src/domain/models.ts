@@ -30,3 +30,8 @@ export interface ScheduleEntry {
   hour: string;
   chargingPower: number;
 }
+
+export interface ScoredForecastHour extends ForecastHour {
+  /** Value between 0 and 1 indicating the benefit of charging in this hour. */
+  benefit: number;
+}

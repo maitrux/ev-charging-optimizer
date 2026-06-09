@@ -14,7 +14,7 @@ import VChart from "vue-echarts";
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
-import { calculateGridCostPerKwh } from "../domain/scoring";
+import { scoreForecastHours } from "../domain/scoring";
 import CreateVehicleDialog from "./CreateVehicleDialog.vue";
 
 use([
@@ -105,18 +105,35 @@ const chargingPowerData = computed(() =>
 const priceData = computed(() =>
   activeForecast.value.map((item) => item.price),
 );
-const gridCostData = computed(() =>
-  activeForecast.value.map((item) => {
-    const cost = calculateGridCostPerKwh(item);
 
-    return Number.isFinite(cost) ? Number(cost.toFixed(4)) : null;
-  }),
-);
 const solarData = computed(() =>
   activeForecast.value.map((item) => item.solar),
 );
+
 const confidenceData = computed(() =>
   activeForecast.value.map((item) => item.confidence),
+);
+
+const benefitByTimestamp = computed(() => {
+  if (!selectedVehicle.value) return new Map<string, number>();
+
+  const targetTime = new Date(selectedVehicle.value.targetTime).getTime();
+  const usableForecasts = activeForecast.value.filter(
+    (forecast) => new Date(forecast.timestamp).getTime() <= targetTime,
+  );
+
+  return new Map(
+    scoreForecastHours(usableForecasts).map((hour) => [
+      hour.timestamp,
+      hour.benefit,
+    ]),
+  );
+});
+
+const benefitData = computed(() =>
+  activeForecast.value.map(
+    (forecast) => benefitByTimestamp.value.get(forecast.timestamp) ?? null,
+  ),
 );
 
 const socData = computed(() => {
@@ -150,23 +167,36 @@ const chartOptions = computed(() => {
         if (!forecast) return "";
 
         const hour = hours.value[index];
-        const gridCost = calculateGridCostPerKwh(forecast);
-        const gridCostLabel = Number.isFinite(gridCost)
-          ? `${gridCost.toFixed(3)} €/kWh`
-          : "n/a";
 
         const lines = [
           `<strong>${hour}</strong>`,
           `Price: ${forecast.price.toFixed(2)} €/kWh`,
-          `Grid cost (price ÷ confidence): ${gridCostLabel}`,
           `Solar: ${forecast.solar.toFixed(1)} kWh`,
           `Plug-in confidence: ${(forecast.confidence * 100).toFixed(0)}%`,
         ];
+
+        const benefit = benefitByTimestamp.value.get(forecast.timestamp);
+
+        if (benefit !== undefined) {
+          lines.push(`Benefit: ${benefit.toFixed(2)}`);
+        }
 
         for (const param of params) {
           const value = param.value;
 
           if (value === null || value === undefined) continue;
+
+          if (param.seriesName === "Benefit") {
+            lines.push(`${param.marker} ${param.seriesName}: ${Number(value).toFixed(2)}`);
+            continue;
+          }
+
+          if (param.seriesName === "Plug-in Confidence") {
+            lines.push(
+              `${param.marker} ${param.seriesName}: ${(Number(value) * 100).toFixed(0)}%`,
+            );
+            continue;
+          }
 
           lines.push(`${param.marker} ${param.seriesName}: ${value}`);
         }
@@ -217,6 +247,17 @@ const chartOptions = computed(() => {
       },
       {
         type: "value",
+        gridIndex: 3,
+        name: "Benefit",
+        min: 0,
+        max: 1,
+        position: "right",
+        splitLine: {
+          show: false,
+        },
+      },
+      {
+        type: "value",
         gridIndex: 4,
         name: "SoC",
         min: 0,
@@ -234,20 +275,10 @@ const chartOptions = computed(() => {
         yAxisIndex: 0,
         data: priceData.value,
         smooth: true,
-        showSymbol: false,
+        showSymbol: true,
+        symbolSize: 6,
         color: "#2196F3",
         lineStyle: { width: 2 },
-      },
-      {
-        name: "Grid cost",
-        type: "line",
-        xAxisIndex: 0,
-        yAxisIndex: 0,
-        data: gridCostData.value,
-        smooth: true,
-        showSymbol: false,
-        color: "#78909C",
-        lineStyle: { type: "dashed", width: 2 },
       },
       {
         name: "Solar",
@@ -256,6 +287,8 @@ const chartOptions = computed(() => {
         yAxisIndex: 1,
         data: solarData.value,
         smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
         color: "#FFC107",
       },
       {
@@ -266,6 +299,8 @@ const chartOptions = computed(() => {
         data: confidenceData.value,
         color: "#4CAF50",
         smooth: true,
+        showSymbol: true,
+        symbolSize: 6,
       },
       {
         name: "Charging Power",
@@ -276,10 +311,26 @@ const chartOptions = computed(() => {
         color: "#7986CB",
       },
       {
+        name: "Benefit",
+        type: "line",
+        xAxisIndex: 3,
+        yAxisIndex: 4,
+        data: benefitData.value,
+        smooth: true,
+        showSymbol: false,
+        color: "#9E9E9E",
+        lineStyle: {
+          type: "dotted",
+          width: 2,
+          color: "#9E9E9E",
+        },
+        connectNulls: false,
+      },
+      {
         name: "State of Charge",
         type: "line",
         xAxisIndex: 4,
-        yAxisIndex: 4,
+        yAxisIndex: 5,
         data: socData.value,
         smooth: true,
         color: "#9C27B0",
