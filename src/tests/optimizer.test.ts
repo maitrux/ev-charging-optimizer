@@ -154,6 +154,82 @@ describe("generateChargingSchedule", () => {
     expect(solarHour?.chargingPower).toBeGreaterThan(0);
   });
 
+  it("limits charging power to available solar when only solar energy is needed", () => {
+    const partialSolarVehicle: Vehicle = {
+      batteryCapacity: 58,
+      currentSoc: 95,
+      targetSoc: 80,
+      maxChargingPower: 7.4,
+      targetTime: "2026-06-10T13:00:00Z",
+    };
+
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.28,
+        solar: 3,
+        confidence: 0.95,
+      },
+    ];
+
+    const schedule = generateChargingSchedule(partialSolarVehicle, forecasts);
+    const solarHour = schedule.find(
+      (entry) => entry.hour === "2026-06-10T11:00:00Z",
+    );
+
+    expect(solarHour?.chargingPower).toBeCloseTo(2.9, 5);
+  });
+
+  it("collects all free solar buckets before using grid energy", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T02:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.28,
+        solar: 3,
+        confidence: 0.95,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.22,
+        solar: 5,
+        confidence: 0.9,
+      },
+    ];
+
+    const id3: Vehicle = {
+      batteryCapacity: 58,
+      currentSoc: 25,
+      targetSoc: 80,
+      maxChargingPower: 7.4,
+      targetTime: "2026-06-10T16:00:00Z",
+    };
+
+    const schedule = generateChargingSchedule(id3, forecasts);
+
+    expect(
+      schedule.find((entry) => entry.hour === "2026-06-10T11:00:00Z")
+        ?.chargingPower,
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      schedule.find((entry) => entry.hour === "2026-06-10T12:00:00Z")
+        ?.chargingPower,
+    ).toBeGreaterThanOrEqual(5);
+
+    const totalSolarUsed = schedule
+      .filter((entry) =>
+        ["2026-06-10T11:00:00Z", "2026-06-10T12:00:00Z"].includes(entry.hour),
+      )
+      .reduce((sum, entry) => sum + entry.chargingPower, 0);
+
+    expect(totalSolarUsed).toBeGreaterThanOrEqual(8);
+  });
+
   it("keeps charging past the minimum target when cheap slots remain", () => {
     const forecasts: ForecastHour[] = [
       {

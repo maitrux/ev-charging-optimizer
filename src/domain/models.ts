@@ -30,11 +30,3 @@ export interface ScheduleEntry {
   hour: string;
   chargingPower: number;
 }
-
-export interface ScoredForecastHour extends ForecastHour {
-  /**
-   * Effective charging cost used to rank charging opportunities.
-   * Lower values are better.
-   */
-  effectiveCost: number;
-}
