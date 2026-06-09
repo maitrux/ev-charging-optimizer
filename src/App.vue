@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import ChargingChart from "./components/ChargingChart.vue";
-import SocChart from "./components/SocChart.vue";
 </script>
 
 <template>
@@ -11,16 +10,9 @@ import SocChart from "./components/SocChart.vue";
         <v-row>
           <v-col
             cols="12"
-            md="6"
+            md="12"
           >
             <ChargingChart />
-          </v-col>
-
-          <v-col
-            cols="12"
-            md="6"
-          >
-            <SocChart />
           </v-col>
         </v-row>
       </v-container>

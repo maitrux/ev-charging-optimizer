@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { Vehicle } from "../domain/models";
+import type { NamedVehicle } from "../domain/models";
 
 const props = defineProps<{
   existingVehicleNames: string[];
 }>();
 
 const emit = defineEmits<{
-  create: [vehicle: Vehicle];
+  create: [vehicle: NamedVehicle];
 }>();
 
 const dialog = ref(false);
@@ -29,7 +29,7 @@ const uniqueNameRule = (value: string) =>
   !normalizedExistingVehicleNames.value.includes(value.trim().toLowerCase()) ||
   "Name must be unique";
 
-const form = ref<Vehicle>({
+const form = ref<NamedVehicle>({
   name: "",
   batteryCapacity: 60,
   currentSoc: 40,
