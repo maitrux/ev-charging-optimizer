@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ForecastHour, Vehicle } from "../domain/models";
 import {
   parseForecastJson,
@@ -64,6 +64,20 @@ describe("parseForecastJson", () => {
     );
   });
 
+  it("reports generic parse failures that are not syntax errors", () => {
+    const parseSpy = vi
+      .spyOn(JSON, "parse")
+      .mockImplementation(() => {
+        throw new TypeError("unexpected token");
+      });
+
+    expect(() => parseForecastJson("[]")).toThrow(
+      "Invalid JSON in Forecast file: could not parse JSON",
+    );
+
+    parseSpy.mockRestore();
+  });
+
   it("rejects non-array JSON", () => {
     expect(() =>
       parseForecastJson('{"timestamp":"2026-06-10T10:00:00Z"}'),
@@ -82,6 +96,24 @@ describe("parseForecastJson", () => {
         '[{"timestamp":123,"price":0.2,"solar":1,"confidence":0.5}]',
       ),
     ).toThrow('Forecast entry 1: "timestamp" must be a non-empty string.');
+  });
+
+  it("rejects non-object forecast entries", () => {
+    expect(() => parseForecastJson("[null]")).toThrow(
+      "Forecast entry 1 must be a JSON object.",
+    );
+
+    expect(() => parseForecastJson('["not-an-object"]')).toThrow(
+      "Forecast entry 1 must be a JSON object.",
+    );
+  });
+
+  it("rejects timestamps that match the ISO pattern but are not valid dates", () => {
+    expect(() =>
+      parseForecastJson(
+        '[{"timestamp":"2026-06-10T00:00:00+99:99","price":0.2,"solar":1,"confidence":0.5}]',
+      ),
+    ).toThrow('Forecast entry 1: "timestamp" is not a valid date.');
   });
 
   it("rejects invalid forecast timestamps", () => {
@@ -236,6 +268,12 @@ describe("parseVehicleJson", () => {
         '{"batteryCapacity":75,"currentSoc":-1,"targetSoc":80,"targetTime":"2026-06-10T16:00:00Z","maxChargingPower":11}',
       ),
     ).toThrow('Vehicle file: "currentSoc" must be between 0 and 100.');
+
+    expect(() =>
+      parseVehicleJson(
+        '{"batteryCapacity":75,"currentSoc":30,"targetSoc":101,"targetTime":"2026-06-10T16:00:00Z","maxChargingPower":11}',
+      ),
+    ).toThrow('Vehicle file: "targetSoc" must be between 0 and 100.');
   });
 
   it("rejects target SoC below current SoC", () => {
@@ -289,6 +327,30 @@ describe("validateTargetTimeWithinForecast", () => {
 
   it("accepts a target time within the forecast range", () => {
     expect(() => validateTargetTimeWithinForecast(vehicle, forecasts)).not.toThrow();
+  });
+
+  it("accepts a target time within an unsorted forecast range", () => {
+    const unsortedForecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T14:00:00Z",
+        price: 0.3,
+        solar: 0.5,
+        confidence: 0.9,
+      },
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.2,
+        solar: 1.5,
+        confidence: 0.8,
+      },
+    ];
+
+    expect(() =>
+      validateTargetTimeWithinForecast(
+        { ...vehicle, targetTime: "2026-06-10T12:00:00Z" },
+        unsortedForecasts,
+      ),
+    ).not.toThrow();
   });
 
   it("accepts a target time on the forecast boundaries", () => {

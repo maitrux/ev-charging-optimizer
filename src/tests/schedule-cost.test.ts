@@ -43,4 +43,53 @@ describe("calculateScheduleCost", () => {
     expect(summary.solarEnergyKwh).toBe(3);
     expect(summary.gridEnergyKwh).toBe(0);
   });
+
+  it("skips entries with no matching forecast hour", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.3,
+        solar: 5,
+        confidence: 1,
+      },
+    ];
+
+    const summary = calculateScheduleCost(
+      [{ hour: "2026-06-10T11:00:00Z", chargingPower: 7 }],
+      forecasts,
+    );
+
+    expect(summary).toEqual({
+      totalCostEur: 0,
+      totalEnergyKwh: 0,
+      solarEnergyKwh: 0,
+      gridEnergyKwh: 0,
+    });
+  });
+
+  it("skips entries with zero or negative charging power", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.3,
+        solar: 5,
+        confidence: 1,
+      },
+    ];
+
+    const summary = calculateScheduleCost(
+      [
+        { hour: "2026-06-10T12:00:00Z", chargingPower: 0 },
+        { hour: "2026-06-10T12:00:00Z", chargingPower: -2 },
+      ],
+      forecasts,
+    );
+
+    expect(summary).toEqual({
+      totalCostEur: 0,
+      totalEnergyKwh: 0,
+      solarEnergyKwh: 0,
+      gridEnergyKwh: 0,
+    });
+  });
 });
