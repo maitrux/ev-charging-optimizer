@@ -19,7 +19,6 @@ import {
 } from "../domain/datetime";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
-import { calculateScheduleCost } from "../domain/schedule-cost";
 import { scoreForecastHours } from "../domain/scoring";
 import { calculateTargetSocReachProbability } from "../domain/target-soc-probability";
 import {
@@ -95,11 +94,6 @@ const schedule = computed(() => {
 
   return generateChargingSchedule(selectedVehicle.value, activeForecast.value);
 });
-
-// COMPARISON ONLY — remove before merge
-const scheduleCost = computed(() =>
-  calculateScheduleCost(schedule.value, activeForecast.value),
-);
 
 const targetSocProbability = computed(() => {
   if (!selectedVehicle.value || scheduleValidationError.value) return null;
@@ -584,25 +578,6 @@ async function handleForecastUpload(event: Event) {
       <p>
         <strong>Probability of reaching target SoC:</strong>
         {{ (targetSocProbability * 100).toFixed(0) }}%
-      </p>
-    </v-alert>
-
-    <v-alert
-      v-if="selectedVehicle && schedule.length > 0"
-      color="warning"
-      variant="tonal"
-      class="mt-4"
-      density="compact"
-    >
-      <p>
-        <strong>Estimated charging cost:</strong>
-        {{ scheduleCost.totalCostEur.toFixed(2) }} €
-      </p>
-      <p>
-        {{ scheduleCost.totalEnergyKwh.toFixed(1) }} kWh total ({{
-          scheduleCost.solarEnergyKwh.toFixed(1)
-        }}
-        solar, {{ scheduleCost.gridEnergyKwh.toFixed(1) }} grid)
       </p>
     </v-alert>
 

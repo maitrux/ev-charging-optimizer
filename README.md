@@ -30,8 +30,6 @@ This produces three behaviors in one model:
 
 **Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoc`.
 
-Estimated charging cost in the UI is calculated afterwards in `schedule-cost.ts`: solar offsets grid demand first (`min(chargingPower, solar)` is free), and the remainder is billed at the forecasted price.
-
 ## Architecture
 
 How the CLI, UI, and domain layer connect:
@@ -48,7 +46,6 @@ flowchart TB
     VAL[validation.ts]
     S[scoring.ts]
     O[optimizer.ts]
-    COST[schedule-cost.ts]
     DT[datetime.ts]
   end
 
@@ -80,7 +77,6 @@ flowchart TB
   SCHED --> CLI
   SCHED --> UI
 
-  UI --> COST
   UI --> DT
   UI --> CHART[ECharts visualization]
 ```
@@ -152,8 +148,6 @@ pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 - State of charge over time
 - Target SoC and target time markers
 
-6. Show an estimated cost summary (grid vs. solar energy split).
-
 ```bash
 pnpm dev
 ```
@@ -166,7 +160,7 @@ Open the URL shown in the terminal.
 - **Sub-hour target times** — the hour bucket whose start is on or before the target is included; the chart places the target-time marker proportionally within that bucket.
 - **Proportional allocation** — power is distributed by benefit score, not by filling discrete cheapest buckets first.
 - **Battery headroom** — planning fills toward 100% capacity within the window, scaled down if the benefit-weighted plan exceeds available kWh.
-- **Solar preference via scoring** — solar influences the benefit score; cost estimation later treats solar as free up to `min(chargingPower, solar)`.
+- **Solar preference via scoring** — solar influences the benefit score.
 - **Confidence as multiplier** — low confidence reduces benefit; it is not modeled as `price / confidence`.
 - **Perfect foresight** — prices, solar, and confidence are taken as given; no real-time re-optimization.
 
@@ -187,7 +181,6 @@ src/
 │   ├── validation.ts     # JSON parsing and input validation
 │   ├── scoring.ts        # Hour benefit scoring
 │   ├── optimizer.ts      # Schedule generation
-│   ├── schedule-cost.ts  # Post-hoc cost / energy summary (UI)
 │   └── datetime.ts       # UTC ↔ local time helpers (UI)
 ├── cli/index.ts          # Command-line interface
 ├── components/
