@@ -63,6 +63,8 @@ function validateStringField(
 const ISO_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
 
+const MAX_FORECAST_DURATION_MS = 24 * 60 * 60 * 1000;
+
 function validateIsoTimestamp(
   value: string,
   field: string,
@@ -147,6 +149,20 @@ function validateForecastOrdering(forecasts: ForecastHour[]): void {
     }
 
     previousTimestamp = timestamp;
+  }
+}
+
+function validateForecastDuration(forecasts: ForecastHour[]): void {
+  const firstTimestamp = new Date(forecasts[0].timestamp).getTime();
+  const lastTimestamp = new Date(
+    forecasts[forecasts.length - 1].timestamp,
+  ).getTime();
+  const durationMs = lastTimestamp - firstTimestamp;
+
+  if (durationMs > MAX_FORECAST_DURATION_MS) {
+    throw new Error(
+      `Forecast must span at most 24 hours (from ${forecasts[0].timestamp} to ${forecasts[forecasts.length - 1].timestamp}).`,
+    );
   }
 }
 
@@ -261,6 +277,7 @@ export function parseForecastJson(content: string): ForecastHour[] {
 
   if (forecasts.length > 0) {
     validateForecastOrdering(forecasts);
+    validateForecastDuration(forecasts);
   }
 
   return forecasts;

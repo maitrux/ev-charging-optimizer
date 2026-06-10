@@ -13,6 +13,7 @@ import VChart from "vue-echarts";
 
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
 import {
+  formatChartAxisLabels,
   formatDateTimeDeDe,
   getTargetTimeChartAxisPosition,
 } from "../domain/datetime";
@@ -99,12 +100,9 @@ const scheduleCost = computed(() =>
   calculateScheduleCost(schedule.value, activeForecast.value),
 );
 
-const hours = computed(() =>
-  activeForecast.value.map((item) =>
-    new Date(item.timestamp).toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+const chartAxisLabels = computed(() =>
+  formatChartAxisLabels(
+    activeForecast.value.map((forecast) => forecast.timestamp),
   ),
 );
 
@@ -211,10 +209,8 @@ const chartOptions = computed(() => {
 
         if (!forecast) return "";
 
-        const hour = hours.value[index];
-
         const lines = [
-          `<strong>${hour}</strong>`,
+          `<strong>${formatDateTimeDeDe(forecast.timestamp)}</strong>`,
           `Price: ${forecast.price.toFixed(2)} €/kWh`,
           `Solar: ${forecast.solar.toFixed(1)} kWh`,
           `Plug-in confidence: ${(forecast.confidence * 100).toFixed(0)}%`,
@@ -277,7 +273,7 @@ const chartOptions = computed(() => {
             return "";
           }
 
-          return hours.value[value] ?? "";
+          return chartAxisLabels.value[value] ?? "";
         },
       },
     })),

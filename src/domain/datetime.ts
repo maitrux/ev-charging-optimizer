@@ -30,6 +30,41 @@ export function formatDateTimeDeDe(isoUtc: string): string {
   return new Date(isoUtc).toLocaleString("de-DE", DE_DATE_TIME_FORMAT);
 }
 
+function formatChartAxisTime(isoUtc: string): string {
+  return new Date(isoUtc).toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatChartAxisDate(isoUtc: string): string {
+  return new Date(isoUtc).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+/** Chart x-axis labels: date is shown only on the first tick of each day. */
+export function formatChartAxisLabels(timestamps: string[]): string[] {
+  let previousDateKey = "";
+
+  return timestamps.map((timestamp) => {
+    const dateKey = new Date(timestamp).toLocaleDateString("de-DE", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const time = formatChartAxisTime(timestamp);
+
+    if (dateKey !== previousDateKey) {
+      previousDateKey = dateKey;
+      return `${formatChartAxisDate(timestamp)}\n${time}`;
+    }
+
+    return time;
+  });
+}
+
 /**
  * Maps a target time onto a categorical hourly chart axis.
  * Forecast timestamps are hour starts; sub-hour targets are placed proportionally

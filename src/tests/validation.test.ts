@@ -195,6 +195,33 @@ describe("parseForecastJson", () => {
       ]`),
     ).toThrow("Forecast entry 2: Timestamps must be in chronological order.");
   });
+
+  it("accepts a forecast spanning exactly 24 hours", () => {
+    expect(() =>
+      parseForecastJson(`[
+        {"timestamp":"2026-06-10T00:00:00Z","price":0.2,"solar":1,"confidence":0.5},
+        {"timestamp":"2026-06-11T00:00:00Z","price":0.3,"solar":1,"confidence":0.5}
+      ]`),
+    ).not.toThrow();
+  });
+
+  it("accepts a forecast that crosses midnight within 24 hours", () => {
+    expect(() =>
+      parseForecastJson(`[
+        {"timestamp":"2026-06-10T20:00:00Z","price":0.2,"solar":1,"confidence":0.5},
+        {"timestamp":"2026-06-11T20:00:00Z","price":0.3,"solar":1,"confidence":0.5}
+      ]`),
+    ).not.toThrow();
+  });
+
+  it("rejects a forecast spanning more than 24 hours", () => {
+    expect(() =>
+      parseForecastJson(`[
+        {"timestamp":"2026-06-10T00:00:00Z","price":0.2,"solar":1,"confidence":0.5},
+        {"timestamp":"2026-06-11T01:00:00Z","price":0.3,"solar":1,"confidence":0.5}
+      ]`),
+    ).toThrow("Forecast must span at most 24 hours");
+  });
 });
 
 describe("parseVehicleJson", () => {

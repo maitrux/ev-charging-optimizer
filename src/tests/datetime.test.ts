@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   datetimeLocalToUtcIso,
+  formatChartAxisLabels,
   formatDateTimeDeDe,
   getDefaultTargetTimeUtc,
   getTargetTimeChartAxisPosition,
@@ -69,5 +70,19 @@ describe("datetime helpers", () => {
     expect(targetTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(targetMs).toBeGreaterThanOrEqual(before + oneDayMs);
     expect(targetMs).toBeLessThanOrEqual(after + oneDayMs);
+  });
+
+  it("shows chart axis dates only when the day changes", () => {
+    const labels = formatChartAxisLabels([
+      "2026-06-10T12:00:00Z",
+      "2026-06-10T13:00:00Z",
+      "2026-06-11T12:00:00Z",
+      "2026-06-11T13:00:00Z",
+    ]);
+
+    expect(labels[0]).toContain("\n");
+    expect(labels[1]).not.toContain("\n");
+    expect(labels[2]).toContain("\n");
+    expect(labels[3]).not.toContain("\n");
   });
 });
