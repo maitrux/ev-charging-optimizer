@@ -99,7 +99,9 @@ flowchart LR
 
 
 
-## How to run the progam?
+## How to run the progam
+
+Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
 
 ### CLI
 
@@ -109,9 +111,18 @@ Run the following command:
 pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 ```
 
-You can also replace these examples with your own files.
+You can also replace these example files with your own files.
 
 The output schedule is printed to the terminal.
+
+Example output:
+
+```json
+[
+  { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.8 },
+  { "hour": "2026-06-10T12:00:00Z", "chargingPower": 4.69 }
+]
+```
 
 ### Web UI
 
@@ -125,14 +136,24 @@ Open the URL shown in the terminal.
   
 You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles.
 
+## How to run the tests
+
+```bash
+pnpm run test
+```
+
+```bash
+pnpm test:coverage
+```
+
+## How is the program tested
+
+All typescript files are covered by unit tests.
+
 ## Key assumptions
 
 - **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20)
-- **Sub-hour target times** — the hour bucket whose start is on or before the target is included; the chart places the target-time marker proportionally within that bucket.
-- **Proportional allocation** — power is distributed by benefit score, not by filling discrete cheapest buckets first.
-- **Battery headroom** — planning fills toward 100% capacity within the window, scaled down if the benefit-weighted plan exceeds available kWh.
-- **Solar preference via scoring** — solar influences the benefit score.
-- **Confidence as multiplier** — low confidence reduces benefit; it is not modeled as `price / confidence`.
+- **Sub-hour target times** — the hour bucket whose start is on or before the target is included.
 - **Perfect foresight** — prices, solar, and confidence are taken as given; no real-time re-optimization.
 
 ## Trade-offs
@@ -166,41 +187,6 @@ examples/
 └── sample-forecast.json
 ```
 
-## How to run
-
-Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run unit tests
-pnpm test
-
-# Run tests with coverage
-pnpm test:coverage
-
-# Start the web UI
-pnpm dev
-```
-
-### CLI
-
-Generate a schedule from JSON files:
-
-```bash
-pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
-```
-
-Example output:
-
-```json
-[
-  { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.8 },
-  { "hour": "2026-06-10T12:00:00Z", "chargingPower": 4.69 }
-]
-```
-
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
@@ -227,6 +213,10 @@ Example output:
 
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
+
+## Limitations
+
+...
 
 ## Tech stack
 
