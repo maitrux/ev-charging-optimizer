@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 
-import type { ForecastHour, Vehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
+import {
+  parseForecastJson,
+  parseVehicleJson,
+  validateTargetTimeWithinForecast,
+} from "../domain/validation";
 
 const [, , forecastPath, vehiclePath] = process.argv;
 
@@ -10,12 +14,16 @@ if (!forecastPath || !vehiclePath) {
   process.exit(1);
 }
 
-const forecasts = JSON.parse(
-  readFileSync(forecastPath, "utf-8"),
-) as ForecastHour[];
+try {
+  const forecasts = parseForecastJson(readFileSync(forecastPath, "utf-8"));
+  const vehicle = parseVehicleJson(readFileSync(vehiclePath, "utf-8"));
 
-const vehicle = JSON.parse(readFileSync(vehiclePath, "utf-8")) as Vehicle;
+  validateTargetTimeWithinForecast(vehicle, forecasts);
 
-const schedule = generateChargingSchedule(vehicle, forecasts);
+  const schedule = generateChargingSchedule(vehicle, forecasts);
 
-console.log(JSON.stringify(schedule, null, 2));
+  console.log(JSON.stringify(schedule, null, 2));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}

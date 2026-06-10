@@ -12,10 +12,15 @@ import { computed, ref } from "vue";
 import VChart from "vue-echarts";
 
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
+import { formatDateTimeDeDe } from "../domain/datetime";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
 import { calculateScheduleCost } from "../domain/schedule-cost";
 import { scoreForecastHours } from "../domain/scoring";
+import {
+  parseForecastJson,
+  validateTargetTimeWithinForecast,
+} from "../domain/validation";
 import CreateVehicleDialog from "./CreateVehicleDialog.vue";
 
 use([
@@ -66,8 +71,22 @@ const selectedVehicle = computed(() =>
   vehicles.value.find((vehicle) => vehicle.name === selectedVehicleName.value),
 );
 
+const scheduleValidationError = computed(() => {
+  if (!selectedVehicle.value) return null;
+
+  try {
+    validateTargetTimeWithinForecast(
+      selectedVehicle.value,
+      activeForecast.value,
+    );
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+});
+
 const schedule = computed(() => {
-  if (!selectedVehicle.value) return [];
+  if (!selectedVehicle.value || scheduleValidationError.value) return [];
 
   return generateChargingSchedule(selectedVehicle.value, activeForecast.value);
 });
@@ -371,35 +390,6 @@ function addVehicle(vehicle: NamedVehicle) {
   selectedVehicleName.value = vehicle.name;
 }
 
-function isForecastHour(value: unknown): value is ForecastHour {
-  if (typeof value !== "object" || value === null) return false;
-
-  const entry = value as Record<string, unknown>;
-
-  return (
-    typeof entry.timestamp === "string" &&
-    typeof entry.price === "number" &&
-    typeof entry.solar === "number" &&
-    typeof entry.confidence === "number"
-  );
-}
-
-function parseForecastFile(content: string): ForecastHour[] {
-  const parsed: unknown = JSON.parse(content);
-
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    throw new Error("Forecast file must be a non-empty JSON array.");
-  }
-
-  if (!parsed.every(isForecastHour)) {
-    throw new Error(
-      "Each entry must include timestamp, price, solar, and confidence.",
-    );
-  }
-
-  return parsed;
-}
-
 function openForecastUpload() {
   fileInputRef.value?.click();
 }
@@ -416,7 +406,13 @@ async function handleForecastUpload(event: Event) {
 
   try {
     const content = await file.text();
-    uploadedForecast.value = parseForecastFile(content);
+    const forecast = parseForecastJson(content);
+
+    if (selectedVehicle.value) {
+      validateTargetTimeWithinForecast(selectedVehicle.value, forecast);
+    }
+
+    uploadedForecast.value = forecast;
     uploadedForecastName.value = file.name;
     selectedForecastSource.value = "uploaded";
   } catch (error) {
@@ -429,12 +425,6 @@ async function handleForecastUpload(event: Event) {
   }
 }
 
-function mapUTCToLocalDateTime(utcTime: string) {
-  return new Date(utcTime).toLocaleString("de-DE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 </script>
 
 <template>
@@ -505,6 +495,15 @@ function mapUTCToLocalDateTime(utcTime: string) {
     </v-alert>
 
     <v-alert
+      v-else-if="scheduleValidationError"
+      type="error"
+      variant="tonal"
+      class="mt-4"
+    >
+      {{ scheduleValidationError }}
+    </v-alert>
+
+    <v-alert
       v-else-if="selectedForecastSource === 'uploaded' && uploadedForecast"
       color="success"
       variant="tonal"
@@ -533,7 +532,7 @@ function mapUTCToLocalDateTime(utcTime: string) {
       </p>
       <p>
         <strong>Target time:</strong>
-        {{ mapUTCToLocalDateTime(selectedVehicle.targetTime) }}
+        {{ formatDateTimeDeDe(selectedVehicle.targetTime) }}
       </p>
     </v-alert>
 
