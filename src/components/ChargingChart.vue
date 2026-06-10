@@ -21,6 +21,7 @@ import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
 import { calculateScheduleCost } from "../domain/schedule-cost";
 import { scoreForecastHours } from "../domain/scoring";
+import { calculateTargetSocReachProbability } from "../domain/target-soc-probability";
 import {
   parseForecastJson,
   validateTargetTimeWithinForecast,
@@ -99,6 +100,16 @@ const schedule = computed(() => {
 const scheduleCost = computed(() =>
   calculateScheduleCost(schedule.value, activeForecast.value),
 );
+
+const targetSocProbability = computed(() => {
+  if (!selectedVehicle.value || scheduleValidationError.value) return null;
+
+  return calculateTargetSocReachProbability(
+    selectedVehicle.value,
+    schedule.value,
+    activeForecast.value,
+  ).probability;
+});
 
 const chartAxisLabels = computed(() =>
   formatChartAxisLabels(
@@ -453,7 +464,6 @@ async function handleForecastUpload(event: Event) {
       error instanceof Error ? error.message : "Could not read forecast file.";
   }
 }
-
 </script>
 
 <template>
@@ -562,6 +572,18 @@ async function handleForecastUpload(event: Event) {
       <p>
         <strong>Target time:</strong>
         {{ formatDateTimeDeDe(selectedVehicle.targetTime) }}
+      </p>
+    </v-alert>
+
+    <v-alert
+      v-if="selectedVehicle"
+      color="deep-purple"
+      variant="tonal"
+      class="mt-4"
+    >
+      <p>
+        <strong>Probability of reaching target SoC:</strong>
+        {{ (targetSocProbability * 100).toFixed(0) }}%
       </p>
     </v-alert>
 
