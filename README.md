@@ -24,6 +24,27 @@ If the sum of planned energy exceeds the remaining battery capacity, all hours a
 
 **Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
+## Project structure
+
+```
+src/
+├── domain/
+│   ├── models.ts         # Vehicle, ForecastHour, ScheduleEntry types
+│   ├── validation.ts     # JSON parsing and input validation
+│   ├── scoring.ts        # Hour benefit scoring
+│   ├── optimizer.ts      # Schedule generation
+│   └── datetime.ts       # UTC ↔ local time helpers (UI)
+├── cli/index.ts          # Command-line interface
+├── components/
+│   ├── ChargingChart.vue       # Interactive chart (Vue + ECharts)
+│   └── CreateVehicleDialog.vue # Add vehicle form
+├── data/                 # Sample vehicles and forecast
+└── tests/                # Vitest unit tests
+examples/
+├── sample-vehicle.json
+└── sample-forecast.json
+```
+
 ## Architecture
 
 How the CLI, UI, and domain layer connect:
@@ -136,57 +157,6 @@ Open the URL shown in the terminal.
   
 You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles.
 
-## How to run the tests
-
-```bash
-pnpm run test
-```
-
-```bash
-pnpm test:coverage
-```
-
-## How is the program tested
-
-All typescript files are covered by unit tests.
-
-## Key assumptions
-
-- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20)
-- **Sub-hour target times** — the hour bucket whose start is on or before the target is included.
-- **Perfect foresight** — prices, solar, and confidence are taken as given; no real-time re-optimization.
-
-## Trade-offs
-
-
-| Decision                            | Benefit                                                 | Cost                                                                   |
-| ----------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Benefit-weighted proportional power | Simple, continuous, easy to visualize                   | Not a discrete cost-optimal knapsack                                   |
-| Combined solar × price score        | Balances both goals in one ranking                      | No explicit split between free solar and paid grid during optimization |
-| Uniform downscaling                 | Preserves relative hour preferences when capacity-bound | Does not re-optimize after scaling                                     |
-
-
-## Project structure
-
-```
-src/
-├── domain/
-│   ├── models.ts         # Vehicle, ForecastHour, ScheduleEntry types
-│   ├── validation.ts     # JSON parsing and input validation
-│   ├── scoring.ts        # Hour benefit scoring
-│   ├── optimizer.ts      # Schedule generation
-│   └── datetime.ts       # UTC ↔ local time helpers (UI)
-├── cli/index.ts          # Command-line interface
-├── components/
-│   ├── ChargingChart.vue       # Interactive chart (Vue + ECharts)
-│   └── CreateVehicleDialog.vue # Add vehicle form
-├── data/                 # Sample vehicles and forecast
-└── tests/                # Vitest unit tests
-examples/
-├── sample-vehicle.json
-└── sample-forecast.json
-```
-
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
@@ -213,6 +183,36 @@ examples/
 
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
+
+## How to run the tests
+
+```bash
+pnpm run test
+```
+
+```bash
+pnpm test:coverage
+```
+
+## How is the program tested
+
+All typescript files are covered by unit tests.
+
+## Key assumptions
+
+- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20)
+- **Sub-hour target times** — the hour bucket whose start is on or before the target is included.
+- **Perfect foresight** — no real-time re-optimization.
+
+## Trade-offs
+
+
+| Decision                            | Benefit                                 | Cost                                                                   |
+| ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
+| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm                                                   |
+| Combined solar × price x confidence | Balances the three goals in one ranking | No explicit split between free solar and paid grid during optimization |
+| No iteration                        | Simplicity                              | Target SoC might not be reached                                        |
+
 
 ## Limitations
 
