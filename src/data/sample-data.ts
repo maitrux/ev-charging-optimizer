@@ -1,5 +1,5 @@
 import type { ForecastHour, NamedVehicle } from "../domain/models";
-import forecastData from "./forcast.json";
+import forecastData from "./forecast.json";
 
 export const sampleVehicles: NamedVehicle[] = [
   {
