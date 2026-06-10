@@ -15,20 +15,14 @@ For each forecast hour in the planning window, the optimizer calculates a benefi
 Charging power in each hour is then set proportionally:
 
 ```
-chargingPower = maxChargingPower × benefit × scale
+chargingPower = maxChargingPower × benefit
 ```
 
-If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so the total fits. The result is returned in chronological order.
+If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so the total fits.
 
-This produces three behaviors in one model:
+**Target time** is a hard deadline: only forecast hours whose start is on or before the target are considered. Sub-hour targets are supported.
 
-1. **Solar preference** — sunny hours score higher and receive more charging power.
-2. **Cost awareness** — cheap hours score higher than expensive ones.
-3. **Reliability** — low-confidence hours are deprioritized because confidence multiplies the combined score.
-
-**Target time** is a hard deadline: only forecast hours whose start is on or before the target are considered. Sub-hour targets are supported (for example `16:30` includes the `16:00` hour bucket).
-
-**Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoc`.
+**Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
 ## Architecture
 
@@ -81,23 +75,7 @@ flowchart TB
   UI --> CHART[ECharts visualization]
 ```
 
-## Optimization pipeline
 
-End-to-end flow inside `generateChargingSchedule`:
-
-```mermaid
-flowchart TD
-  A[Vehicle + Forecasts] --> B{Battery already full?}
-  B -->|Yes| Z[Return empty schedule]
-  B -->|No| C[Filter hours with start ≤ target time]
-  C --> D[Score each hour → benefit 0–1]
-  D --> E[Set power = maxPower × benefit per hour]
-  E --> F{Total energy > battery headroom?}
-  F -->|Yes| G[Scale all hours down proportionally]
-  F -->|No| H[Keep planned power]
-  G --> I[Return schedule in time order]
-  H --> I
-```
 
 ## Scoring model
 
@@ -113,46 +91,39 @@ flowchart LR
 
   P --> NP[Invert + normalize<br/>cheap = high]
   SO --> NS[Normalize<br/>more solar = high]
-  NP --> COMB[combined = solar × price score]
+  NP --> COMB[benefit = solar × price x confidence]
   NS --> COMB
-  COMB --> CONF[× confidence]
-  CONF --> BEN[Normalize to benefit 0–1]
-  BEN --> OUT[chargingPower = maxPower × benefit × scale]
+  COMB --> BEN[Normalize benefit to 0–1]
+  BEN --> OUT[chargingPower = maxPower × benefit]
 ```
 
-Example: a sunny, cheap hour with high confidence gets benefit close to 1 and charges near `maxChargingPower`. A pricey night hour with low confidence gets a low benefit and little or no charging.
 
-## Application flow
+
+## How to run the progam?
 
 ### CLI
 
-1. Read forecast and vehicle JSON files from disk.
-2. Parse and validate both files (`validation.ts`).
-3. Ensure `targetTime` falls within the forecast range.
-4. Generate the schedule and print JSON to stdout.
+Run the following command: 
 
 ```bash
 pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 ```
 
+You can also replace these examples with your own files.
+
+The output schedule is printed to the terminal.
+
 ### Web UI
 
-1. Loads automatically sample vehicles and a default forecast.
-2. Select a vehicle, or create a new one in the dialog (validated, `de-DE` target-time input).
-3. Optionally upload a custom forecast JSON file.
-4. Validate that the vehicle target time fits the active forecast.
-5. Generate the schedule and render a stacked chart:
-
-- Price, solar, plug-in confidence
-- Charging power and benefit score
-- State of charge over time
-- Target SoC and target time markers
+Run the following comand:
 
 ```bash
 pnpm dev
 ```
 
-Open the URL shown in the terminal.
+Open the URL shown in the terminal.  
+  
+You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles.
 
 ## Key assumptions
 
@@ -166,11 +137,13 @@ Open the URL shown in the terminal.
 
 ## Trade-offs
 
+
 | Decision                            | Benefit                                                 | Cost                                                                   |
 | ----------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
 | Benefit-weighted proportional power | Simple, continuous, easy to visualize                   | Not a discrete cost-optimal knapsack                                   |
 | Combined solar × price score        | Balances both goals in one ranking                      | No explicit split between free solar and paid grid during optimization |
 | Uniform downscaling                 | Preserves relative hour preferences when capacity-bound | Does not re-optimize after scaling                                     |
+
 
 ## Project structure
 
@@ -232,6 +205,7 @@ Example output:
 
 **Vehicle** (`examples/sample-vehicle.json`):
 
+
 | Field              | Type   | Description                                                  |
 | ------------------ | ------ | ------------------------------------------------------------ |
 | `batteryCapacity`  | number | Max capacity in kWh                                          |
@@ -240,7 +214,9 @@ Example output:
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
 | `maxChargingPower` | number | Max charger power in kW                                      |
 
+
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
+
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -248,6 +224,7 @@ Example output:
 | `price`      | number | Electricity price in €/kWh      |
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
+
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
 
@@ -258,3 +235,4 @@ Both files are validated on load: required fields, numeric ranges, chronological
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
 - **tsx** — CLI runner
+
