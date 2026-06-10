@@ -1,31 +1,40 @@
 # EV Charging Schedule Optimizer
 
-An algorithm and visualization tool that builds an optimal EV charging schedule from hourly forecasts of electricity price, solar production, and plug-in confidence.
+An algorithm and visualization tool that builds an EV charging schedule from hourly forecasts of electricity price, solar production, and plug-in confidence.
 
-Built as a take-home assignment for **Zählerfreunde** — reduce energy costs while maximizing local solar use, with uncertainty factored in.
+Goal: Reduce energy costs while maximizing local solar use, with uncertainty factored in.
 
 ## Approach
 
-The optimizer uses a **split-slot greedy algorithm**. Each forecast hour is divided into two charging buckets:
+For each forecast hour in the planning window, the optimizer calculates a benefit score from 0 to 1 that indicates how favorable the hour is for charging. Charging energy is then distributed across the hours in proportion to these benefit scores.
 
-| Bucket | Energy available | Cost |
-|--------|------------------|------|
-| **Solar** | `min(solar, maxChargingPower)` kWh | 0 (free local production) |
-| **Grid** | remaining slot capacity | `price / confidence` per kWh |
+1. **Solar** — more available solar raises the score.
+2. **Price** — cheaper grid electricity raises the score.
+3. **Confidence** — higher plug-in probability raises the score.
 
-All buckets across the planning horizon are ranked by cost. The algorithm greedily fills the cheapest buckets until the battery plan is satisfied, then applies the result chronologically so the battery never exceeds 100%.
+Charging power in each hour is then set proportionally:
 
-This gives three behaviors in one model:
+```
+chargingPower = maxChargingPower × benefit × scale
+```
 
-1. **Solar utilization** — partial solar hours charge at reduced power (e.g. 3 kW when only 3 kWh solar is available), not always at max power.
-2. **Cost minimization** — grid energy is only bought from the cheapest reliable hours once free solar is exhausted.
-3. **Reliability** — low plug-in confidence raises the effective grid cost, making uncertain cheap slots less attractive.
+If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so the total fits. The result is returned in chronological order.
 
-**Target SoC** is the minimum required by departure time. When affordable energy remains, charging continues up to **100% battery capacity**.
+This produces three behaviors in one model:
+
+1. **Solar preference** — sunny hours score higher and receive more charging power.
+2. **Cost awareness** — cheap hours score higher than expensive ones.
+3. **Reliability** — low-confidence hours are deprioritized because confidence multiplies the combined score.
+
+**Target time** is a hard deadline: only forecast hours whose start is on or before the target are considered. Sub-hour targets are supported (for example `16:30` includes the `16:00` hour bucket).
+
+**Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoc`.
+
+Estimated charging cost in the UI is calculated afterwards in `schedule-cost.ts`: solar offsets grid demand first (`min(chargingPower, solar)` is free), and the remainder is billed at the forecasted price.
 
 ## Architecture
 
-How the UI, CLI, and domain logic connect:
+How the CLI, UI, and domain layer connect:
 
 ```mermaid
 flowchart TB
@@ -36,19 +45,28 @@ flowchart TB
 
   subgraph domain [Domain Layer]
     M[models.ts]
+    VAL[validation.ts]
     S[scoring.ts]
     O[optimizer.ts]
+    COST[schedule-cost.ts]
+    DT[datetime.ts]
   end
 
   subgraph apps [Applications]
     CLI[cli/index.ts]
     UI[ChargingChart.vue]
+    DIALOG[CreateVehicleDialog.vue]
   end
 
   V --> CLI
   F --> CLI
   V --> UI
   F --> UI
+  V --> DIALOG
+
+  CLI --> VAL
+  UI --> VAL
+  DIALOG --> VAL
 
   CLI --> O
   UI --> O
@@ -56,11 +74,14 @@ flowchart TB
   O --> S
   O --> M
   S --> M
+  VAL --> M
 
   O --> SCHED[ScheduleEntry array]
   SCHED --> CLI
   SCHED --> UI
 
+  UI --> COST
+  UI --> DT
   UI --> CHART[ECharts visualization]
 ```
 
@@ -72,26 +93,19 @@ End-to-end flow inside `generateChargingSchedule`:
 flowchart TD
   A[Vehicle + Forecasts] --> B{Battery already full?}
   B -->|Yes| Z[Return empty schedule]
-  B -->|No| C[Filter hours before target time]
-  C --> D[Build ranked charging buckets]
-  D --> E[Greedy allocation by cost]
-  E --> F[Convert kWh per hour to kW]
-  F --> G[Apply chronologically]
-  G --> H[Clip when battery reaches 100%]
-  H --> I[Charging schedule]
-
-  subgraph bucketBuild [buildChargingBuckets]
-    D1[Split each hour into solar + grid buckets]
-    D2[Sort by cost, then type, then time]
-    D1 --> D2
-  end
-
-  D --> bucketBuild
+  B -->|No| C[Filter hours with start ≤ target time]
+  C --> D[Score each hour → benefit 0–1]
+  D --> E[Set power = maxPower × benefit per hour]
+  E --> F{Total energy > battery headroom?}
+  F -->|Yes| G[Scale all hours down proportionally]
+  F -->|No| H[Keep planned power]
+  G --> I[Return schedule in time order]
+  H --> I
 ```
 
-## Bucket model per hour
+## Scoring model
 
-How a single forecast hour becomes chargeable energy:
+How a single forecast hour becomes a benefit score:
 
 ```mermaid
 flowchart LR
@@ -99,76 +113,88 @@ flowchart LR
     P[Price €/kWh]
     SO[Solar kWh]
     C[Confidence 0–1]
-    MP[Max charging power kW]
   end
 
-  hour --> SB[Solar bucket<br/>energy = min solar, maxPower<br/>cost = 0]
-  hour --> GB[Grid bucket<br/>energy = maxPower − solar<br/>cost = price / confidence]
-
-  SB --> SLOT[Hour slot<br/>max maxPower kWh]
-  GB --> SLOT
-
-  SLOT --> OUT[chargingPower kW<br/>solar + grid combined]
+  P --> NP[Invert + normalize<br/>cheap = high]
+  SO --> NS[Normalize<br/>more solar = high]
+  NP --> COMB[combined = solar × price score]
+  NS --> COMB
+  COMB --> CONF[× confidence]
+  CONF --> BEN[Normalize to benefit 0–1]
+  BEN --> OUT[chargingPower = maxPower × benefit × scale]
 ```
 
-Example for 3 kWh solar, 7.4 kW max, 0.28 €/kWh, 95% confidence:
+Example: a sunny, cheap hour with high confidence gets benefit close to 1 and charges near `maxChargingPower`. A pricey night hour with low confidence gets a low benefit and little or no charging.
 
-- Solar bucket: **3 kWh at €0**
-- Grid bucket: **4.4 kWh at €0.295/kWh**
-- Possible outcomes: 3 kW solar-only, or 7.4 kW mixed, depending on what the greedy pass still needs.
+## Application flow
 
-## Bucket ranking and allocation
+### CLI
 
-How the greedy pass decides what to charge:
+1. Read forecast and vehicle JSON files from disk.
+2. Parse and validate both files (`validation.ts`).
+3. Ensure `targetTime` falls within the forecast range.
+4. Generate the schedule and print JSON to stdout.
 
-```mermaid
-flowchart TD
-  START[Remaining energy = battery capacity − current SoC] --> SOLAR[Take all solar buckets cost = 0]
-  SOLAR --> GRID[Take grid buckets cheapest first]
-  GRID --> CHECK{Energy plan complete?}
-  CHECK -->|No| GRID
-  CHECK -->|Yes| TIME[Walk schedule in time order]
-  TIME --> FULL{Battery full?}
-  FULL -->|Yes| SKIP[Set chargingPower = 0]
-  FULL -->|No| APPLY[Apply planned power capped by remaining capacity]
-  SKIP --> NEXT[Next hour]
-  APPLY --> NEXT
-  NEXT --> TIME
+```bash
+pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 ```
+
+### Web UI
+
+1. Loads automatically sample vehicles and a default forecast.
+2. Select a vehicle, or create a new one in the dialog (validated, `de-DE` target-time input).
+3. Optionally upload a custom forecast JSON file.
+4. Validate that the vehicle target time fits the active forecast.
+5. Generate the schedule and render a stacked chart:
+
+- Price, solar, plug-in confidence
+- Charging power and benefit score
+- State of charge over time
+- Target SoC and target time markers
+
+6. Show an estimated cost summary (grid vs. solar energy split).
+
+```bash
+pnpm dev
+```
+
+Open the URL shown in the terminal.
 
 ## Key assumptions
 
-- **Hourly slots** — each forecast entry represents one hour; charging power is constant within the slot.
-- **Solar is free and local** — using forecasted solar costs nothing; unused solar in non-charging hours is not modeled (no feed-in tariff or curtailment).
-- **Solar caps power, grid fills the rest** — within an hour, solar energy limits the free portion; any additional energy in that slot comes from the grid at the forecasted price.
-- **Confidence adjusts grid cost only** — zero confidence excludes an hour entirely; solar buckets are also skipped when confidence is zero.
-- **Fill to 100% when economical** — the optimizer plans energy up to full battery capacity, not just to target SoC, as long as affordable buckets exist before target time.
+- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20)
+- **Sub-hour target times** — the hour bucket whose start is on or before the target is included; the chart places the target-time marker proportionally within that bucket.
+- **Proportional allocation** — power is distributed by benefit score, not by filling discrete cheapest buckets first.
+- **Battery headroom** — planning fills toward 100% capacity within the window, scaled down if the benefit-weighted plan exceeds available kWh.
+- **Solar preference via scoring** — solar influences the benefit score; cost estimation later treats solar as free up to `min(chargingPower, solar)`.
+- **Confidence as multiplier** — low confidence reduces benefit; it is not modeled as `price / confidence`.
 - **Perfect foresight** — prices, solar, and confidence are taken as given; no real-time re-optimization.
 
 ## Trade-offs
 
-| Decision | Benefit | Cost |
-|----------|---------|------|
-| Greedy bucket filling | Simple, fast, easy to explain | Not globally optimal if hour coupling mattered |
-| Split solar / grid buckets | Realistic partial solar charging | Two-pass planning (cost order, then time order) can discard late assignments if the battery fills early |
-| `price / confidence` for grid | Handles uncertainty without complex probability models | Confidence is a scalar penalty, not a full stochastic model |
-| No feed-in / export model | Keeps the objective function small | May under-use midday solar if the car is unplugged |
-| Fill beyond target SoC | Captures cheap energy when available | Uses more energy than strictly required for departure |
+| Decision                            | Benefit                                                 | Cost                                                                   |
+| ----------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Benefit-weighted proportional power | Simple, continuous, easy to visualize                   | Not a discrete cost-optimal knapsack                                   |
+| Combined solar × price score        | Balances both goals in one ranking                      | No explicit split between free solar and paid grid during optimization |
+| Uniform downscaling                 | Preserves relative hour preferences when capacity-bound | Does not re-optimize after scaling                                     |
 
 ## Project structure
 
 ```
 src/
 ├── domain/
-│   ├── models.ts       # Vehicle, ForecastHour, ScheduleEntry types
-│   ├── scoring.ts      # Bucket building and cost ranking
-│   └── optimizer.ts    # Schedule generation
-├── cli/index.ts        # Command-line interface
+│   ├── models.ts         # Vehicle, ForecastHour, ScheduleEntry types
+│   ├── validation.ts     # JSON parsing and input validation
+│   ├── scoring.ts        # Hour benefit scoring
+│   ├── optimizer.ts      # Schedule generation
+│   ├── schedule-cost.ts  # Post-hoc cost / energy summary (UI)
+│   └── datetime.ts       # UTC ↔ local time helpers (UI)
+├── cli/index.ts          # Command-line interface
 ├── components/
-│   ├── ChargingChart.vue      # Interactive chart (Vue + ECharts)
-│   └── CreateVehicleDialog.vue
-├── data/               # Sample vehicles and forecast
-└── tests/              # Vitest unit tests
+│   ├── ChargingChart.vue       # Interactive chart (Vue + ECharts)
+│   └── CreateVehicleDialog.vue # Add vehicle form
+├── data/                 # Sample vehicles and forecast
+└── tests/                # Vitest unit tests
 examples/
 ├── sample-vehicle.json
 └── sample-forecast.json
@@ -176,7 +202,7 @@ examples/
 
 ## How to run
 
-Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (or npm).
+Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
 
 ```bash
 # Install dependencies
@@ -185,26 +211,27 @@ pnpm install
 # Run unit tests
 pnpm test
 
-# Start the web UI with chart visualization
+# Run tests with coverage
+pnpm test:coverage
+
+# Start the web UI
 pnpm dev
 ```
-
-Open the URL shown in the terminal (typically `http://localhost:5173`). Select a vehicle, optionally upload a custom forecast JSON, and inspect the stacked chart of price, solar, confidence, charging power, and SoC.
 
 ### CLI
 
 Generate a schedule from JSON files:
 
 ```bash
-pnpm cli -- examples/sample-forecast.json examples/sample-vehicle.json
+pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 ```
 
 Example output:
 
 ```json
 [
-  { "hour": "2026-06-10T02:00:00Z", "chargingPower": 4.2 },
-  { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.5 }
+  { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.8 },
+  { "hour": "2026-06-10T12:00:00Z", "chargingPower": 4.69 }
 ]
 ```
 
@@ -212,22 +239,24 @@ Example output:
 
 **Vehicle** (`examples/sample-vehicle.json`):
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `batteryCapacity` | number | Max capacity in kWh |
-| `currentSoc` | number | Starting SoC in % |
-| `targetSoc` | number | Minimum required SoC by target time |
-| `targetTime` | string | ISO timestamp deadline |
-| `maxChargingPower` | number | Max charger power in kW |
+| Field              | Type   | Description                                                  |
+| ------------------ | ------ | ------------------------------------------------------------ |
+| `batteryCapacity`  | number | Max capacity in kWh                                          |
+| `currentSoc`       | number | Starting SoC in %                                            |
+| `targetSoc`        | number | Minimum required SoC by target time (validated; shown in UI) |
+| `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
+| `maxChargingPower` | number | Max charger power in kW                                      |
 
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `timestamp` | string | ISO timestamp for the hour |
-| `price` | number | Electricity price in €/kWh |
-| `solar` | number | Available solar energy in kWh |
+| Field        | Type   | Description                     |
+| ------------ | ------ | ------------------------------- |
+| `timestamp`  | string | ISO 8601 hour start             |
+| `price`      | number | Electricity price in €/kWh      |
+| `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
+
+Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
 
 ## Tech stack
 

@@ -7,10 +7,19 @@ import {
   validateTargetTimeWithinForecast,
 } from "../domain/validation";
 
-const [, , forecastPath, vehiclePath] = process.argv;
+const args = process.argv.slice(2);
+
+// pnpm forwards the `--` separator to the script; npm does not.
+if (args[0] === "--") {
+  args.shift();
+}
+
+const [forecastPath, vehiclePath] = args;
 
 if (!forecastPath || !vehiclePath) {
-  console.error("Usage: npm run cli -- <forecast.json> <vehicle.json>");
+  console.error(
+    "Usage: pnpm run cli [--] <forecast.json> <vehicle.json>",
+  );
   process.exit(1);
 }
 
