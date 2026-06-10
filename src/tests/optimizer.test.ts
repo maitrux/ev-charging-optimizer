@@ -65,6 +65,39 @@ describe("generateChargingSchedule", () => {
     expect(cheapHour?.chargingPower).toBeGreaterThan(0);
   });
 
+  it("includes the hour bucket that contains a sub-hour target time", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T13:00:00Z",
+        price: 0.2,
+        solar: 0,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T14:00:00Z",
+        price: 0.3,
+        solar: 0,
+        confidence: 1,
+      },
+    ];
+
+    const schedule = generateChargingSchedule(
+      { ...vehicle, targetTime: "2026-06-10T13:30:00Z" },
+      forecasts,
+    );
+
+    expect(schedule.map((entry) => entry.hour)).toEqual([
+      "2026-06-10T12:00:00Z",
+      "2026-06-10T13:00:00Z",
+    ]);
+  });
+
   it("excludes hours after target time from the schedule", () => {
     const forecasts: ForecastHour[] = [
       {

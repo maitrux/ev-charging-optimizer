@@ -3,6 +3,7 @@ import {
   datetimeLocalToUtcIso,
   formatDateTimeDeDe,
   getDefaultTargetTimeUtc,
+  getTargetTimeChartAxisPosition,
   utcIsoToDatetimeLocal,
 } from "../domain/datetime";
 
@@ -18,6 +19,43 @@ describe("datetime helpers", () => {
     const formatted = formatDateTimeDeDe("2026-06-10T14:30:00.000Z");
 
     expect(formatted).toMatch(/\d{1,2}\.\d{1,2}\.\d{2,4}/);
+  });
+
+  it("returns 0 when no forecast timestamps are available", () => {
+    expect(getTargetTimeChartAxisPosition([], "2026-06-10T13:30:00Z")).toBe(
+      0,
+    );
+  });
+
+  it("falls back to the last forecast index for unmapped target times", () => {
+    const forecasts = [
+      "2026-06-10T12:00:00Z",
+      "2026-06-10T13:00:00Z",
+      "2026-06-10T14:00:00Z",
+    ];
+
+    expect(getTargetTimeChartAxisPosition(forecasts, "not-a-date")).toBe(2);
+  });
+
+  it("places sub-hour target times proportionally on the chart axis", () => {
+    const forecasts = [
+      "2026-06-10T12:00:00Z",
+      "2026-06-10T13:00:00Z",
+      "2026-06-10T14:00:00Z",
+    ];
+
+    expect(
+      getTargetTimeChartAxisPosition(forecasts, "2026-06-10T13:30:00Z"),
+    ).toBe(1.5);
+    expect(
+      getTargetTimeChartAxisPosition(forecasts, "2026-06-10T13:00:00Z"),
+    ).toBe(1);
+    expect(
+      getTargetTimeChartAxisPosition(forecasts, "2026-06-10T11:00:00Z"),
+    ).toBe(0);
+    expect(
+      getTargetTimeChartAxisPosition(forecasts, "2026-06-10T15:00:00Z"),
+    ).toBe(2);
   });
 
   it("returns a UTC ISO timestamp roughly 24 hours in the future", () => {

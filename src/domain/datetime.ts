@@ -29,3 +29,45 @@ export function datetimeLocalToUtcIso(localValue: string): string {
 export function formatDateTimeDeDe(isoUtc: string): string {
   return new Date(isoUtc).toLocaleString("de-DE", DE_DATE_TIME_FORMAT);
 }
+
+/**
+ * Maps a target time onto a categorical hourly chart axis.
+ * Forecast timestamps are hour starts; sub-hour targets are placed proportionally
+ * between the surrounding hour buckets.
+ */
+export function getTargetTimeChartAxisPosition(
+  forecastTimestamps: string[],
+  targetTimeIso: string,
+): number {
+  if (forecastTimestamps.length === 0) {
+    return 0;
+  }
+
+  const targetMs = new Date(targetTimeIso).getTime();
+  const hourStarts = forecastTimestamps.map(
+    (timestamp) => new Date(timestamp).getTime(),
+  );
+
+  if (targetMs <= hourStarts[0]) {
+    return 0;
+  }
+
+  const lastIndex = hourStarts.length - 1;
+
+  if (targetMs >= hourStarts[lastIndex]) {
+    return lastIndex;
+  }
+
+  for (let index = 0; index < lastIndex; index++) {
+    const hourStart = hourStarts[index];
+    const nextHourStart = hourStarts[index + 1];
+
+    if (targetMs >= hourStart && targetMs < nextHourStart) {
+      const progress = (targetMs - hourStart) / (nextHourStart - hourStart);
+
+      return index + progress;
+    }
+  }
+
+  return lastIndex;
+}

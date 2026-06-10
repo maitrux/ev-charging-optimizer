@@ -12,7 +12,10 @@ import { computed, ref } from "vue";
 import VChart from "vue-echarts";
 
 import { sampleForecast, sampleVehicles } from "../data/sample-data";
-import { formatDateTimeDeDe } from "../domain/datetime";
+import {
+  formatDateTimeDeDe,
+  getTargetTimeChartAxisPosition,
+} from "../domain/datetime";
 import type { ForecastHour, NamedVehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
 import { calculateScheduleCost } from "../domain/schedule-cost";
@@ -105,17 +108,34 @@ const hours = computed(() =>
   ),
 );
 
-const targetTimeIndex = computed(() => {
+const targetTimeChartPosition = computed(() => {
   if (!selectedVehicle.value) return 0;
 
-  const targetTime = new Date(selectedVehicle.value.targetTime).getTime();
-
-  const closestIndex = activeForecast.value.findIndex(
-    (forecast) => new Date(forecast.timestamp).getTime() >= targetTime,
+  return getTargetTimeChartAxisPosition(
+    activeForecast.value.map((forecast) => forecast.timestamp),
+    selectedVehicle.value.targetTime,
   );
-
-  return closestIndex === -1 ? activeForecast.value.length - 1 : closestIndex;
 });
+
+const chartXAxisMax = computed(() =>
+  Math.max(0, activeForecast.value.length - 1),
+);
+
+function toIndexedSeriesData(values: Array<number | null>) {
+  return values.map((value, index) => [index, value]);
+}
+
+function seriesValue(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value[1] as number;
+  }
+
+  return Number(value);
+}
 
 const scheduleByHour = computed(
   () =>
@@ -207,20 +227,20 @@ const chartOptions = computed(() => {
         }
 
         for (const param of params) {
-          const value = param.value;
+          const value = seriesValue(param.value);
 
-          if (value === null || value === undefined) continue;
+          if (value === null) continue;
 
           if (param.seriesName === "Benefit") {
             lines.push(
-              `${param.marker} ${param.seriesName}: ${Number(value).toFixed(2)}`,
+              `${param.marker} ${param.seriesName}: ${value.toFixed(2)}`,
             );
             continue;
           }
 
           if (param.seriesName === "Plug-in Confidence") {
             lines.push(
-              `${param.marker} ${param.seriesName}: ${(Number(value) * 100).toFixed(0)}%`,
+              `${param.marker} ${param.seriesName}: ${(value * 100).toFixed(0)}%`,
             );
             continue;
           }
@@ -242,11 +262,23 @@ const chartOptions = computed(() => {
       { top: 580, height: 90, left: 60, right: 120 },
     ],
     xAxis: Array.from({ length: 5 }, (_, index) => ({
-      type: "category",
+      type: "value",
       gridIndex: index,
-      data: hours.value,
+      min: 0,
+      max: chartXAxisMax.value,
+      interval: 1,
+      splitLine: {
+        show: false,
+      },
       axisLabel: {
         show: index === 4,
+        formatter: (value: number) => {
+          if (!Number.isInteger(value)) {
+            return "";
+          }
+
+          return hours.value[value] ?? "";
+        },
       },
     })),
     yAxis: [
@@ -300,7 +332,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 0,
         yAxisIndex: 0,
-        data: priceData.value,
+        data: toIndexedSeriesData(priceData.value),
         smooth: true,
         showSymbol: true,
         symbolSize: 6,
@@ -312,7 +344,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 1,
         yAxisIndex: 1,
-        data: solarData.value,
+        data: toIndexedSeriesData(solarData.value),
         smooth: true,
         showSymbol: true,
         symbolSize: 6,
@@ -323,7 +355,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 2,
         yAxisIndex: 2,
-        data: confidenceData.value,
+        data: toIndexedSeriesData(confidenceData.value),
         color: "#4CAF50",
         smooth: true,
         showSymbol: true,
@@ -334,7 +366,8 @@ const chartOptions = computed(() => {
         type: "bar",
         xAxisIndex: 3,
         yAxisIndex: 3,
-        data: chargingPowerData.value,
+        data: toIndexedSeriesData(chargingPowerData.value),
+        barMaxWidth: 36,
         color: "#7986CB",
       },
       {
@@ -342,7 +375,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 3,
         yAxisIndex: 4,
-        data: benefitData.value,
+        data: toIndexedSeriesData(benefitData.value),
         smooth: true,
         showSymbol: false,
         color: "#9E9E9E",
@@ -358,7 +391,7 @@ const chartOptions = computed(() => {
         type: "line",
         xAxisIndex: 4,
         yAxisIndex: 5,
-        data: socData.value,
+        data: toIndexedSeriesData(socData.value),
         smooth: true,
         color: "#9C27B0",
         markLine: {
@@ -372,10 +405,10 @@ const chartOptions = computed(() => {
               },
             },
             {
-              xAxis: targetTimeIndex.value,
+              xAxis: targetTimeChartPosition.value,
               name: "Target Time",
               label: {
-                formatter: "Target time",
+                formatter: `Target time ${formatDateTimeDeDe(selectedVehicle.value.targetTime)}`,
               },
             },
           ],

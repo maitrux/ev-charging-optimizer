@@ -8,7 +8,7 @@ export const sampleVehicles: NamedVehicle[] = [
     currentSoc: 40,
     targetSoc: 70,
     maxChargingPower: 9,
-    targetTime: "2026-06-10T18:00:00Z",
+    targetTime: "2026-06-10T16:30:00Z",
   },
   {
     name: "Tesla Model 3",

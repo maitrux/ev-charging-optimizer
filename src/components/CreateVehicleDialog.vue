@@ -161,6 +161,7 @@ async function createVehicle() {
             label="Target time"
             type="datetime-local"
             lang="de-DE"
+            step="60"
             :hint="targetTimePreview"
             persistent-hint
             :rules="[requiredRule]"
