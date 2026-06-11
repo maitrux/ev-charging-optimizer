@@ -100,16 +100,20 @@ flowchart TB
   SCHED --> CLI
   SCHED --> UI
 
+  CLI --> PROB
   SCHED --> PROB
   UI --> PROB
   PROB --> FB
   PROB --> M
   PROB --> PCT[Target SoC probability]
+  PCT --> CLI
   PCT --> UI
 
   UI --> DT
   UI --> CHART[ECharts visualization]
 ```
+
+
 
 ## Scoring model
 
@@ -131,6 +135,8 @@ flowchart LR
   BEN --> OUT[chargingPower = maxPower × benefit]
 ```
 
+
+
 ## How to run the progam
 
 Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
@@ -145,7 +151,7 @@ pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 
 You can also replace these example files with your own files.
 
-The output schedule is printed to the terminal.
+The assignment requires a charging schedule array as output. The implementation additionally calculates statistics such as probability of reaching the target SoC. These are exposed via a separate verbose mode.
 
 Example output:
 
@@ -154,6 +160,20 @@ Example output:
   { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.8 },
   { "hour": "2026-06-10T12:00:00Z", "chargingPower": 4.69 }
 ]
+```
+
+Run the following command to additionally see the probability of reaching the target SoC:
+
+```bash
+pnpm run cli -- --verbose examples/sample-forecast.json examples/sample-vehicle.json
+```
+
+```json
+[
+  { "hour": "2026-06-10T06:00:00Z", "chargingPower": 0.8 },
+  { "hour": "2026-06-10T12:00:00Z", "chargingPower": 4.69 }
+]
+Probability to reach target SoC: 74%
 ```
 
 ### Web UI
@@ -172,6 +192,7 @@ You can either use the provided sample data or upload your own forecast data (as
 
 **Vehicle** (`examples/sample-vehicle.json`):
 
+
 | Field              | Type   | Description                                                  |
 | ------------------ | ------ | ------------------------------------------------------------ |
 | `batteryCapacity`  | number | Max capacity in kWh                                          |
@@ -180,7 +201,9 @@ You can either use the provided sample data or upload your own forecast data (as
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
 | `maxChargingPower` | number | Max charger power in kW                                      |
 
+
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
+
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -188,6 +211,7 @@ You can either use the provided sample data or upload your own forecast data (as
 | `price`      | number | Electricity price in €/kWh      |
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
+
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
 
@@ -213,11 +237,13 @@ All typescript files are covered by unit tests.
 
 ## Trade-offs
 
+
 | Decision                            | Benefit                                 | Cost                                                                   |
 | ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
 | Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm                                                   |
 | Combined solar × price x confidence | Balances the three goals in one ranking | No explicit split between free solar and paid grid during optimization |
 | No iteration                        | Simplicity                              | Target SoC might not be reached                                        |
+
 
 ## Limitations
 
@@ -233,3 +259,4 @@ All typescript files are covered by unit tests.
 - **Vue 3 + Vuetify** — web UI
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
+

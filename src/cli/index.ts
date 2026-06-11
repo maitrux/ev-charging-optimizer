@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { generateChargingSchedule } from "../domain/optimizer";
+import { calculateTargetSocReachProbability } from "../domain/target-soc-probability";
 import {
   parseForecastJson,
   parseVehicleJson,
@@ -14,11 +15,15 @@ if (args[0] === "--") {
   args.shift();
 }
 
-const [forecastPath, vehiclePath] = args;
+const verbose = args.includes("--verbose") || args.includes("-v");
+const positionalArgs = args.filter(
+  (arg) => arg !== "--verbose" && arg !== "-v",
+);
+const [forecastPath, vehiclePath] = positionalArgs;
 
 if (!forecastPath || !vehiclePath) {
   console.error(
-    "Usage: pnpm run cli [--] <forecast.json> <vehicle.json>",
+    "Usage: pnpm run cli [--] [--verbose|-v] <forecast.json> <vehicle.json>",
   );
   process.exit(1);
 }
@@ -32,6 +37,15 @@ try {
   const schedule = generateChargingSchedule(vehicle, forecasts);
 
   console.log(JSON.stringify(schedule, null, 2));
+
+  if (verbose) {
+    const { probability: targetSocProbability } =
+      calculateTargetSocReachProbability(vehicle, schedule, forecasts);
+
+    console.error(
+      `Probability to reach target SoC: ${(targetSocProbability * 100).toFixed(0)}%`,
+    );
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
