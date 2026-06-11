@@ -24,22 +24,28 @@ If the sum of planned energy exceeds the remaining battery capacity, all hours a
 
 **Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
+**Probability to reach target SoC** — after the schedule is built, we also calculate how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered.
+
 ## Project structure
 
 ```
 src/
 ├── domain/
-│   ├── models.ts         # Vehicle, ForecastHour, ScheduleEntry types
-│   ├── validation.ts     # JSON parsing and input validation
-│   ├── scoring.ts        # Hour benefit scoring
-│   ├── optimizer.ts      # Schedule generation
-│   └── datetime.ts       # UTC ↔ local time helpers (UI)
+│   ├── models.ts                        # Vehicle, ForecastHour, ScheduleEntry types
+│   ├── validation.ts                    # JSON parsing and input validation
+│   ├── scoring.ts                       # Hour benefit scoring
+│   ├── optimizer.ts                     # Schedule generation
+│   ├── for-each-boolean-combination.ts  # Enumerates all 2^n probability outcomes
+│   ├── target-soc-probability.ts        # Target SoC reach probability
+│   └── datetime.ts                      # UTC ↔ local time helpers (UI)
 ├── cli/index.ts          # Command-line interface
 ├── components/
-│   ├── ChargingChart.vue       # Interactive chart (Vue + ECharts)
+│   ├── ChargingChart.vue       # Visualization of the charging schedule
 │   └── CreateVehicleDialog.vue # Add vehicle form
 ├── data/                 # Sample vehicles and forecast
 └── tests/                # Vitest unit tests
+    ├── for-each-boolean-combination.test.ts
+    └── target-soc-probability.test.ts
 examples/
 ├── sample-vehicle.json
 └── sample-forecast.json
@@ -61,6 +67,8 @@ flowchart TB
     VAL[validation.ts]
     S[scoring.ts]
     O[optimizer.ts]
+    FB[for-each-boolean-combination.ts]
+    PROB[target-soc-probability.ts]
     DT[datetime.ts]
   end
 
@@ -92,11 +100,16 @@ flowchart TB
   SCHED --> CLI
   SCHED --> UI
 
+  SCHED --> PROB
+  UI --> PROB
+  PROB --> FB
+  PROB --> M
+  PROB --> PCT[Target SoC probability]
+  PCT --> UI
+
   UI --> DT
   UI --> CHART[ECharts visualization]
 ```
-
-
 
 ## Scoring model
 
@@ -118,15 +131,13 @@ flowchart LR
   BEN --> OUT[chargingPower = maxPower × benefit]
 ```
 
-
-
 ## How to run the progam
 
 Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
 
 ### CLI
 
-Run the following command: 
+Run the following command:
 
 ```bash
 pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
@@ -153,14 +164,13 @@ Run the following comand:
 pnpm dev
 ```
 
-Open the URL shown in the terminal.  
-  
+Open the URL shown in the terminal.
+
 You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles.
 
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
-
 
 | Field              | Type   | Description                                                  |
 | ------------------ | ------ | ------------------------------------------------------------ |
@@ -170,9 +180,7 @@ You can either use the provided sample data or upload your own forecast data (as
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
 | `maxChargingPower` | number | Max charger power in kW                                      |
 
-
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
-
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -180,7 +188,6 @@ You can either use the provided sample data or upload your own forecast data (as
 | `price`      | number | Electricity price in €/kWh      |
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
-
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
 
@@ -206,23 +213,23 @@ All typescript files are covered by unit tests.
 
 ## Trade-offs
 
-
 | Decision                            | Benefit                                 | Cost                                                                   |
 | ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
 | Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm                                                   |
 | Combined solar × price x confidence | Balances the three goals in one ranking | No explicit split between free solar and paid grid during optimization |
 | No iteration                        | Simplicity                              | Target SoC might not be reached                                        |
 
-
 ## Limitations
 
-...
+- max 24 hour forecast
+- no negative electricity prices (in Finland possible)
+- price and solar coefficients are equal: could be modified, also confidence could be emphasized
+- probability calculation: with a large number of hours --> calculating the probability would take too long (O(2^n))
+- no iteration (mention problematic vehicle in UI where probability of reaching target SoC is 0%)
 
 ## Tech stack
 
-- **TypeScript** — domain logic and type safety
+- **TypeScript** — domain logic
 - **Vue 3 + Vuetify** — web UI
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
-- **tsx** — CLI runner
-
