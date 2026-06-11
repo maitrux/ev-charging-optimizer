@@ -98,6 +98,47 @@ describe("generateChargingSchedule", () => {
     ]);
   });
 
+  it("scales energy in the final hour bucket by the remaining time until target", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T13:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+    ];
+
+    const scheduleAtHalfHour = generateChargingSchedule(
+      {
+        batteryCapacity: 100,
+        currentSoc: 50,
+        targetSoc: 50,
+        maxChargingPower: 9,
+        targetTime: "2026-06-10T13:30:00Z",
+      },
+      forecasts,
+    );
+
+    expect(scheduleAtHalfHour).toEqual([
+      { hour: "2026-06-10T13:00:00Z", chargingPower: 4.5 },
+    ]);
+
+    const scheduleAtTwentyOneMinutes = generateChargingSchedule(
+      {
+        batteryCapacity: 100,
+        currentSoc: 50,
+        targetSoc: 50,
+        maxChargingPower: 9,
+        targetTime: "2026-06-10T13:21:00Z",
+      },
+      forecasts,
+    );
+
+    expect(scheduleAtTwentyOneMinutes).toEqual([
+      { hour: "2026-06-10T13:00:00Z", chargingPower: 3.15 },
+    ]);
+  });
+
   it("excludes hours after target time from the schedule", () => {
     const forecasts: ForecastHour[] = [
       {

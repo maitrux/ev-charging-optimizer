@@ -1,3 +1,4 @@
+import { getChargingSlotDurationHours } from "./datetime";
 import type { ForecastHour, ScheduleEntry, Vehicle } from "./models";
 import { scoreForecastHours } from "./scoring";
 
@@ -33,19 +34,31 @@ export function generateChargingSchedule(
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
   );
 
-  const requestedEnergy = scoredHours.reduce(
-    (total, hour) => total + vehicle.maxChargingPower * hour.benefit,
-    0,
-  );
+  const requestedEnergy = scoredHours.reduce((total, hour) => {
+    const slotDurationHours = getChargingSlotDurationHours(
+      hour.timestamp,
+      vehicle.targetTime,
+    );
+
+    return (
+      total +
+      vehicle.maxChargingPower * hour.benefit * slotDurationHours
+    );
+  }, 0);
 
   const scale =
     requestedEnergy > batteryCapacity ? batteryCapacity / requestedEnergy : 1;
 
   return hoursByTime.map((hour) => {
-    const chargingPower = Math.min(
-      vehicle.maxChargingPower * hour.benefit * scale,
-      vehicle.maxChargingPower,
+    const slotDurationHours = getChargingSlotDurationHours(
+      hour.timestamp,
+      vehicle.targetTime,
     );
+    const chargingPower =
+      Math.min(
+        vehicle.maxChargingPower * hour.benefit * scale,
+        vehicle.maxChargingPower,
+      ) * slotDurationHours;
 
     return {
       hour: hour.timestamp,

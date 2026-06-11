@@ -3,6 +3,7 @@ import {
   datetimeLocalToUtcIso,
   formatChartAxisLabels,
   formatDateTimeDeDe,
+  getChargingSlotDurationHours,
   getDefaultTargetTimeUtc,
   getTargetTimeChartAxisPosition,
   utcIsoToDatetimeLocal,
@@ -36,6 +37,26 @@ describe("datetime helpers", () => {
     ];
 
     expect(getTargetTimeChartAxisPosition(forecasts, "not-a-date")).toBe(2);
+  });
+
+  it("returns the available fraction of an hourly slot before the target time", () => {
+    const hour = "2026-06-10T13:00:00Z";
+
+    expect(
+      getChargingSlotDurationHours(hour, "2026-06-10T13:30:00Z"),
+    ).toBe(0.5);
+    expect(
+      getChargingSlotDurationHours(hour, "2026-06-10T13:21:00Z"),
+    ).toBeCloseTo(21 / 60, 10);
+    expect(
+      getChargingSlotDurationHours(hour, "2026-06-10T14:00:00Z"),
+    ).toBe(1);
+    expect(
+      getChargingSlotDurationHours(hour, "2026-06-10T13:00:00Z"),
+    ).toBe(0);
+    expect(
+      getChargingSlotDurationHours(hour, "2026-06-10T12:00:00Z"),
+    ).toBe(0);
   });
 
   it("places sub-hour target times proportionally on the chart axis", () => {

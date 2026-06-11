@@ -65,6 +65,31 @@ export function formatChartAxisLabels(timestamps: string[]): string[] {
   });
 }
 
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+/**
+ * Fraction of an hourly charging slot that is available before the target time.
+ * Forecast timestamps are hour starts; e.g. target 13:30 in the 13:00 bucket → 0.5.
+ */
+export function getChargingSlotDurationHours(
+  hourTimestamp: string,
+  targetTimeIso: string,
+): number {
+  const hourStartMs = new Date(hourTimestamp).getTime();
+  const targetMs = new Date(targetTimeIso).getTime();
+  const hourEndMs = hourStartMs + MS_PER_HOUR;
+
+  if (targetMs <= hourStartMs) {
+    return 0;
+  }
+
+  if (targetMs >= hourEndMs) {
+    return 1;
+  }
+
+  return (targetMs - hourStartMs) / MS_PER_HOUR;
+}
+
 /**
  * Maps a target time onto a categorical hourly chart axis.
  * Forecast timestamps are hour starts; sub-hour targets are placed proportionally
