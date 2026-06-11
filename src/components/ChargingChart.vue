@@ -11,7 +11,11 @@ import { CanvasRenderer } from "echarts/renderers";
 import { computed, ref } from "vue";
 import VChart from "vue-echarts";
 
-import { sampleForecast, sampleVehicles } from "../data/sample-data";
+import {
+  sampleForecast,
+  sampleForecastFullDay,
+  sampleVehicles,
+} from "../data/sample-data";
 import {
   formatChartAxisLabels,
   formatDateTimeDeDe,
@@ -40,7 +44,7 @@ use([
 const vehicles = ref<NamedVehicle[]>([...sampleVehicles]);
 const selectedVehicleName = ref(vehicles.value[0].name);
 
-type ForecastSource = "default" | "uploaded";
+type ForecastSource = "default" | "full-day" | "uploaded";
 
 const selectedForecastSource = ref<ForecastSource>("default");
 const uploadedForecast = ref<ForecastHour[] | null>(null);
@@ -51,6 +55,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const forecastSourceOptions = computed(() => {
   const options: { title: string; value: ForecastSource }[] = [
     { title: "Default forecast", value: "default" },
+    { title: "Full-day forecast", value: "full-day" },
   ];
 
   if (uploadedForecast.value) {
@@ -66,6 +71,10 @@ const forecastSourceOptions = computed(() => {
 const activeForecast = computed(() => {
   if (selectedForecastSource.value === "uploaded" && uploadedForecast.value) {
     return uploadedForecast.value;
+  }
+
+  if (selectedForecastSource.value === "full-day") {
+    return sampleForecastFullDay;
   }
 
   return sampleForecast;
@@ -570,18 +579,19 @@ async function handleForecastUpload(event: Event) {
     </v-alert>
 
     <v-alert
-      v-if="selectedVehicle"
+      v-if="selectedVehicle && !scheduleValidationError"
       color="deep-purple"
       variant="tonal"
       class="mt-4"
     >
       <p>
         <strong>Probability of reaching target SoC:</strong>
-        {{ (targetSocProbability * 100).toFixed(0) }}%
+        {{ (targetSocProbability! * 100).toFixed(0) }}%
       </p>
     </v-alert>
 
     <VChart
+      v-if="selectedVehicle && !scheduleValidationError"
       class="chart mt-8"
       :option="chartOptions"
       autoresize

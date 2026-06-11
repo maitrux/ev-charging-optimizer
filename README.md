@@ -215,6 +215,10 @@ You can either use the provided sample data or upload your own forecast data (as
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
 
+## How is the program tested
+
+All typescript files are covered by unit tests.
+
 ## How to run the tests
 
 ```bash
@@ -225,9 +229,9 @@ pnpm run test
 pnpm test:coverage
 ```
 
-## How is the program tested
 
-All typescript files are covered by unit tests.
+
+[TODO: add the screenshot of the test coverage here]
 
 ## Key assumptions
 

@@ -161,7 +161,7 @@ function validateForecastDuration(forecasts: ForecastHour[]): void {
 
   if (durationMs > MAX_FORECAST_DURATION_MS) {
     throw new Error(
-      `Forecast must span at most 24 hours (from ${forecasts[0].timestamp} to ${forecasts[forecasts.length - 1].timestamp}).`,
+      `Forecast must span at most 24 hours.`,
     );
   }
 }

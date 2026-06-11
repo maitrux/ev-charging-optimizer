@@ -1,4 +1,5 @@
 import type { ForecastHour, NamedVehicle } from "../domain/models";
+import forecastFullDayData from "./forecast-full-day.json";
 import forecastData from "./forecast.json";
 
 export const sampleVehicles: NamedVehicle[] = [
@@ -37,3 +38,4 @@ export const sampleVehicles: NamedVehicle[] = [
 ];
 
 export const sampleForecast = forecastData as ForecastHour[];
+export const sampleForecastFullDay = forecastFullDayData as ForecastHour[];
