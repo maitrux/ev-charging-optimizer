@@ -24,8 +24,8 @@ describe("calculateTargetSocProbability", () => {
   it("matches the two-hour example from the specification", () => {
     const probability = calculateTargetSocProbability(
       [
-        { connectionProbability: 0.7, energy: 3 },
-        { connectionProbability: 0.4, energy: 6 },
+        { connectionProbability: 0.7, energyKwh: 3 },
+        { connectionProbability: 0.4, energyKwh: 6 },
       ],
       5,
     );
@@ -35,7 +35,7 @@ describe("calculateTargetSocProbability", () => {
 
   it("returns 1 when no additional energy is required", () => {
     const probability = calculateTargetSocProbability(
-      [{ connectionProbability: 0.5, energy: 5 }],
+      [{ connectionProbability: 0.5, energyKwh: 5 }],
       0,
     );
 
@@ -50,7 +50,7 @@ describe("calculateTargetSocProbability", () => {
 
   it("returns the connection probability for a single sufficient slot", () => {
     const probability = calculateTargetSocProbability(
-      [{ connectionProbability: 0.65, energy: 8 }],
+      [{ connectionProbability: 0.65, energyKwh: 8 }],
       5,
     );
 
@@ -60,17 +60,17 @@ describe("calculateTargetSocProbability", () => {
   it("ignores zero-power slots", () => {
     const withZeroPower = calculateTargetSocProbability(
       [
-        { connectionProbability: 0.7, energy: 3 },
-        { connectionProbability: 0.5, energy: 0 },
-        { connectionProbability: 0.4, energy: 6 },
+        { connectionProbability: 0.7, energyKwh: 3 },
+        { connectionProbability: 0.5, energyKwh: 0 },
+        { connectionProbability: 0.4, energyKwh: 6 },
       ],
       5,
     );
 
     const withoutZeroPower = calculateTargetSocProbability(
       [
-        { connectionProbability: 0.7, energy: 3 },
-        { connectionProbability: 0.4, energy: 6 },
+        { connectionProbability: 0.7, energyKwh: 3 },
+        { connectionProbability: 0.4, energyKwh: 6 },
       ],
       5,
     );
@@ -139,8 +139,8 @@ describe("calculateTargetSocReachProbability", () => {
 
     const expected = calculateTargetSocProbability(
       [
-        { connectionProbability: 0.7, energy: 3 },
-        { connectionProbability: 0, energy: 6 },
+        { connectionProbability: 0.7, energyKwh: 3 },
+        { connectionProbability: 0, energyKwh: 6 },
       ],
       minimumRequiredEnergyKwh(vehicle),
     );

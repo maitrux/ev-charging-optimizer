@@ -2,20 +2,20 @@ import { getChargingSlotDurationHours } from "./datetime";
 import { forEachBooleanCombination } from "./for-each-boolean-combination";
 import type { ForecastHour, ScheduleEntry, Vehicle } from "./models";
 
-export interface ChargingHour {
-  /** p(i): probability of a successful connection at this hour. */
+export interface ChargingSlot {
+  /** Probability of a successful connection during this slot. */
   connectionProbability: number;
-  /** Energy delivered in this slot when connected, in kWh. */
-  energy: number;
+
+  /** Energy delivered during this slot when connected, in kWh. */
+  energyKwh: number;
 }
 
-export interface TargetSocProbabilityResult {
-  /** Minimum energy required to reach targetSoc, in kWh. */
-  requiredEnergyKwh: number;
-  /** Probability that enough energy is delivered across all connection outcomes. */
-  probability: number;
-}
-
+/**
+ * Calculates the minimum amount of energy required to reach the target SoC.
+ *
+ * @param vehicle - Vehicle configuration and current charging state.
+ * @returns Required energy in kWh.
+ */
 export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
   return (
     vehicle.batteryCapacity * ((vehicle.targetSoc - vehicle.currentSoc) / 100)
@@ -23,49 +23,76 @@ export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
 }
 
 /**
- * Probability of reaching the required energy by enumerating all connection
- * outcomes. Each hour succeeds with p(i) and delivers its scheduled power,
- * or fails with 1 - p(i) and delivers nothing.
+ * Calculates the probability of delivering at least the required amount of
+ * energy by considering all possible connection outcomes.
+ *
+ * For each charging slot:
+ * - A successful connection occurs with probability p(i) and delivers the
+ *   slot's scheduled energy.
+ * - A failed connection occurs with probability 1 - p(i) and delivers no
+ *   energy.
+ *
+ * The probabilities of all outcomes that meet or exceed the required energy
+ * are summed together.
+ *
+ * @param chargingSlots - Charging slots with connection probabilities and energy.
+ * @param requiredEnergyKwh - Minimum energy needed to reach the target SoC.
+ * @returns Probability of reaching the target SoC, between 0 and 1.
  */
 export function calculateTargetSocProbability(
-  hours: ChargingHour[],
+  chargingSlots: ChargingSlot[],
   requiredEnergyKwh: number,
 ): number {
-  if (requiredEnergyKwh <= 0) return 1;
+  if (requiredEnergyKwh <= 0) {
+    return 1;
+  }
 
-  const chargingHours = hours.filter((hour) => hour.energy > 0);
+  const activeChargingSlots = chargingSlots.filter(
+    (slot) => slot.energyKwh > 0,
+  );
 
-  if (chargingHours.length === 0) return 0;
+  if (activeChargingSlots.length === 0) {
+    return 0;
+  }
 
   let probabilityOfReachingTarget = 0;
 
-  forEachBooleanCombination(chargingHours.length, (isConnected) => {
-    let outcomeProbability = 1;
-    let deliveredEnergyKwh = 0;
+  forEachBooleanCombination(
+    activeChargingSlots.length,
+    (connectionOutcomes) => {
+      let outcomeProbability = 1;
+      let deliveredEnergyKwh = 0;
 
-    chargingHours.forEach((hour, index) => {
-      if (isConnected[index]) {
-        outcomeProbability *= hour.connectionProbability;
-        deliveredEnergyKwh += hour.energy;
-      } else {
-        outcomeProbability *= 1 - hour.connectionProbability;
+      activeChargingSlots.forEach((slot, index) => {
+        if (connectionOutcomes[index]) {
+          outcomeProbability *= slot.connectionProbability;
+          deliveredEnergyKwh += slot.energyKwh;
+        } else {
+          outcomeProbability *= 1 - slot.connectionProbability;
+        }
+      });
+
+      if (deliveredEnergyKwh >= requiredEnergyKwh) {
+        probabilityOfReachingTarget += outcomeProbability;
       }
-    });
-
-    if (deliveredEnergyKwh >= requiredEnergyKwh) {
-      probabilityOfReachingTarget += outcomeProbability;
-    }
-  });
+    },
+  );
 
   return probabilityOfReachingTarget;
 }
 
 /**
+ * Calculates the probability of reaching the vehicle's target state of charge
+ * based on the planned charging schedule and connection forecasts.
  *
- * @param vehicle - The vehicle to calculate the target SoC reach probability for.
- * @param schedule - The schedule to calculate the target SoC reach probability for.
- * @param forecasts - The forecasts to calculate the target SoC reach probability for.
- * @returns number - The target SoC reach probability.
+ * The schedule is converted into charging slots containing:
+ * - The forecasted probability of a successful connection.
+ * - The amount of energy that would be delivered if connected.
+ *
+ * @param vehicle - Vehicle configuration and charging target.
+ * @param schedule - Planned charging schedule.
+ * @param forecasts - Connection probability forecasts per time slot.
+ * @returns Probability of reaching the target SoC, between 0 and 1.
  */
 export function calculateTargetSocReachProbability(
   vehicle: Vehicle,
@@ -76,19 +103,24 @@ export function calculateTargetSocReachProbability(
     forecasts.map((forecast) => [forecast.timestamp, forecast]),
   );
 
-  const hours: ChargingHour[] = schedule.map((entry) => {
+  const chargingSlots: ChargingSlot[] = schedule.map((scheduleEntry) => {
+    const forecast = forecastByHour.get(scheduleEntry.hour);
+    const connectionProbability = forecast?.confidence ?? 0;
+
     const durationHours = getChargingSlotDurationHours(
-      entry.hour,
+      scheduleEntry.hour,
       vehicle.targetTime,
     );
 
+    const energyKwh = scheduleEntry.chargingPower * durationHours;
+
     return {
-      connectionProbability: forecastByHour.get(entry.hour)?.confidence ?? 0,
-      energy: entry.chargingPower * durationHours,
+      connectionProbability,
+      energyKwh,
     };
   });
 
   const requiredEnergyKwh = minimumRequiredEnergyKwh(vehicle);
 
-  return calculateTargetSocProbability(hours, requiredEnergyKwh);
+  return calculateTargetSocProbability(chargingSlots, requiredEnergyKwh);
 }
