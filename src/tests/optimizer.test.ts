@@ -59,7 +59,7 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T10:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
     ];
@@ -117,11 +117,14 @@ describe("generateChargingSchedule", () => {
 
     const schedule = generateChargingSchedule(cappedVehicle, forecasts);
 
-    expect(scheduleEnergyKwh(schedule, cappedVehicle.targetTime)).toBe(27.5);
+    expect(scheduleEnergyKwh(schedule, cappedVehicle.targetTime)).toBeCloseTo(
+      41.8,
+      1,
+    );
     expect(schedule).toEqual([
       { hour: "2026-06-10T10:00:00Z", chargingPower: 22 },
-      { hour: "2026-06-10T11:00:00Z", chargingPower: 5.5 },
-      { hour: "2026-06-10T12:00:00Z", chargingPower: 0 },
+      { hour: "2026-06-10T11:00:00Z", chargingPower: 13.2 },
+      { hour: "2026-06-10T12:00:00Z", chargingPower: 6.6 },
     ]);
   });
 
@@ -130,13 +133,13 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T10:00:00Z",
         price: 0.5,
-        solar: 0,
+        solar: 3,
         confidence: 1,
       },
       {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
     ];
@@ -188,7 +191,7 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T13:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
     ];
@@ -197,7 +200,7 @@ describe("generateChargingSchedule", () => {
       {
         batteryCapacity: 100,
         currentSoc: 50,
-        targetSoc: 50,
+        targetSoc: 55,
         maxChargingPower: 9,
         targetTime: "2026-06-10T13:30:00Z",
       },
@@ -212,7 +215,7 @@ describe("generateChargingSchedule", () => {
       {
         batteryCapacity: 100,
         currentSoc: 50,
-        targetSoc: 50,
+        targetSoc: 55,
         maxChargingPower: 9,
         targetTime: "2026-06-10T13:21:00Z",
       },
@@ -265,13 +268,13 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T10:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
       {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
     ];
@@ -316,7 +319,7 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T02:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 1,
         confidence: 1,
       },
       {
@@ -336,7 +339,7 @@ describe("generateChargingSchedule", () => {
     const id3: Vehicle = {
       batteryCapacity: 58,
       currentSoc: 25,
-      targetSoc: 80,
+      targetSoc: 40,
       maxChargingPower: 7.4,
       targetTime: "2026-06-10T16:00:00Z",
     };
@@ -469,7 +472,7 @@ describe("generateChargingSchedule", () => {
       {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.15,
-        solar: 0,
+        solar: 5,
         confidence: 1.0,
       },
     ];
