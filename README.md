@@ -24,6 +24,14 @@ chargingPower = maxChargingPower × benefit
 
 **Probability to reach target SoC** — after the schedule is built, we also calculate how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered.
 
+
+
+If If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so that the remaining battery capacity is not exceeded.
+
+```markdown
+
+```
+
 After having calculated the initial charging plan, the optmizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done maximum 10 times.
 
 ## Project structure
