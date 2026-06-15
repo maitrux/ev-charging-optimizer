@@ -24,13 +24,7 @@ chargingPower = maxChargingPower × benefit
 
 **Probability to reach target SoC** — after the schedule is built, we also calculate how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered.
 
-
-
 If If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so that the remaining battery capacity is not exceeded.
-
-```markdown
-
-```
 
 After having calculated the initial charging plan, the optmizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done maximum 10 times.
 
@@ -130,17 +124,17 @@ How a single forecast hour becomes a benefit score:
 ```mermaid
 flowchart LR
   subgraph hour [One forecast hour]
-    P[Price €/kWh]
-    SO[Solar kWh]
-    C[Confidence 0–1]
+    P["Price EUR/kWh"]
+    SO["Solar kWh"]
+    C["Confidence 0-1"]
   end
 
-  P --> NP[Invert + normalize<br/>cheap = high]
-  SO --> NS[Normalize<br/>more solar = high]
-  NP --> COMB[benefit = normalize(solar × price) x confidence]
+  P --> NP["Invert + normalize<br/>cheap = high"]
+  SO --> NS["Normalize<br/>more solar = high"]
+  NP --> COMB["benefit = normalize(solar x price) x confidence"]
   NS --> COMB
-  COMB --> BEN[Normalize benefit to 0–1]
-  BEN --> OUT[chargingPower = maxPower × benefit]
+  COMB --> BEN["Normalize benefit to 0-1"]
+  BEN --> OUT["chargingPower = maxPower x benefit"]
 ```
 
 
