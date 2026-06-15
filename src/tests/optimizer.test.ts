@@ -88,6 +88,37 @@ describe("generateChargingSchedule", () => {
     );
   });
 
+  it("caps required energy at remaining battery capacity when target exceeds what fits", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 1,
+      },
+    ];
+
+    const overTargetVehicle: Vehicle = {
+      batteryCapacity: 100,
+      currentSoc: 50,
+      targetSoc: 110,
+      maxChargingPower: 11,
+      targetTime: "2026-06-10T13:00:00Z",
+    };
+
+    const remainingCapacityKwh =
+      (overTargetVehicle.batteryCapacity *
+        (100 - overTargetVehicle.currentSoc)) /
+      100;
+
+    const schedule = generateChargingSchedule(overTargetVehicle, forecasts);
+
+    expect(scheduleEnergyKwh(schedule, overTargetVehicle.targetTime)).toBeLessThanOrEqual(
+      remainingCapacityKwh,
+    );
+    expect(schedule[0].chargingPower).toBeGreaterThan(0);
+  });
+
   it("prefers lower effective cost hours", () => {
     const forecasts: ForecastHour[] = [
       {
