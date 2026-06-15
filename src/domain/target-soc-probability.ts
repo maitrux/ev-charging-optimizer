@@ -20,7 +20,7 @@ export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
   const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
   const targetEnergyKwh = vehicle.batteryCapacity * (vehicle.targetSoc / 100);
 
-  return Math.max(0, targetEnergyKwh - currentEnergyKwh);
+  return targetEnergyKwh - currentEnergyKwh;
 }
 
 /**

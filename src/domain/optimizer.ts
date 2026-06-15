@@ -16,7 +16,7 @@ function round(value: number, decimals = 2): number {
 
 function remainingBatteryCapacityKwh(vehicle: Vehicle): number {
   const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
-  return Math.max(0, vehicle.batteryCapacity - currentEnergyKwh);
+  return vehicle.batteryCapacity - currentEnergyKwh;
 }
 
 interface ChargingSlot {
