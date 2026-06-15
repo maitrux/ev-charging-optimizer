@@ -17,10 +17,9 @@ export interface TargetSocProbabilityResult {
 }
 
 export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
-  const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
-  const targetEnergyKwh = vehicle.batteryCapacity * (vehicle.targetSoc / 100);
-
-  return targetEnergyKwh - currentEnergyKwh;
+  return (
+    vehicle.batteryCapacity * ((vehicle.targetSoc - vehicle.currentSoc) / 100)
+  );
 }
 
 /**
@@ -32,61 +31,64 @@ export function calculateTargetSocProbability(
   hours: ChargingHour[],
   requiredEnergyKwh: number,
 ): number {
-  if (requiredEnergyKwh <= 0) {
-    return 1;
-  }
+  if (requiredEnergyKwh <= 0) return 1;
 
-  const activeHours = hours.filter((hour) => hour.energy > 0);
+  const chargingHours = hours.filter((hour) => hour.energy > 0);
 
-  if (activeHours.length === 0) {
-    return 0;
-  }
+  if (chargingHours.length === 0) return 0;
 
-  let reachTargetProbability = 0;
+  let probabilityOfReachingTarget = 0;
 
-  forEachBooleanCombination(activeHours.length, (connected) => {
-    let probability = 1;
-    let energyKwh = 0;
+  forEachBooleanCombination(chargingHours.length, (isConnected) => {
+    let outcomeProbability = 1;
+    let deliveredEnergyKwh = 0;
 
-    for (let index = 0; index < activeHours.length; index++) {
-      const hour = activeHours[index];
-
-      if (connected[index]) {
-        probability *= hour.connectionProbability;
-        energyKwh += hour.energy;
+    chargingHours.forEach((hour, index) => {
+      if (isConnected[index]) {
+        outcomeProbability *= hour.connectionProbability;
+        deliveredEnergyKwh += hour.energy;
       } else {
-        probability *= 1 - hour.connectionProbability;
+        outcomeProbability *= 1 - hour.connectionProbability;
       }
-    }
+    });
 
-    if (energyKwh >= requiredEnergyKwh) {
-      reachTargetProbability += probability;
+    if (deliveredEnergyKwh >= requiredEnergyKwh) {
+      probabilityOfReachingTarget += outcomeProbability;
     }
   });
 
-  return reachTargetProbability;
+  return probabilityOfReachingTarget;
 }
 
+/**
+ *
+ * @param vehicle - The vehicle to calculate the target SoC reach probability for.
+ * @param schedule - The schedule to calculate the target SoC reach probability for.
+ * @param forecasts - The forecasts to calculate the target SoC reach probability for.
+ * @returns number - The target SoC reach probability.
+ */
 export function calculateTargetSocReachProbability(
   vehicle: Vehicle,
   schedule: ScheduleEntry[],
   forecasts: ForecastHour[],
-): TargetSocProbabilityResult {
+): number {
   const forecastByHour = new Map(
     forecasts.map((forecast) => [forecast.timestamp, forecast]),
   );
 
-  const hours = schedule.map((entry) => ({
-    connectionProbability: forecastByHour.get(entry.hour)?.confidence ?? 0,
-    energy:
-      entry.chargingPower *
-      getChargingSlotDurationHours(entry.hour, vehicle.targetTime),
-  }));
+  const hours: ChargingHour[] = schedule.map((entry) => {
+    const durationHours = getChargingSlotDurationHours(
+      entry.hour,
+      vehicle.targetTime,
+    );
+
+    return {
+      connectionProbability: forecastByHour.get(entry.hour)?.confidence ?? 0,
+      energy: entry.chargingPower * durationHours,
+    };
+  });
 
   const requiredEnergyKwh = minimumRequiredEnergyKwh(vehicle);
 
-  return {
-    requiredEnergyKwh,
-    probability: calculateTargetSocProbability(hours, requiredEnergyKwh),
-  };
+  return calculateTargetSocProbability(hours, requiredEnergyKwh);
 }

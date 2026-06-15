@@ -111,8 +111,7 @@ describe("calculateTargetSocReachProbability", () => {
       ],
     );
 
-    expect(result.requiredEnergyKwh).toBeCloseTo(5, 5);
-    expect(result.probability).toBeCloseTo(0.4, 5);
+    expect(result).toBeCloseTo(0.4, 5);
   });
 
   it("defaults connection probability to 0 when a schedule hour has no forecast", () => {
@@ -147,6 +146,6 @@ describe("calculateTargetSocReachProbability", () => {
     );
 
     // Missing forecast for hour 2 falls back to connectionProbability = 0.
-    expect(result.probability).toBeCloseTo(expected, 5);
+    expect(result).toBeCloseTo(expected, 5);
   });
 });

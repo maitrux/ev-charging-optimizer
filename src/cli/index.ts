@@ -39,8 +39,11 @@ try {
   console.log(JSON.stringify(schedule, null, 2));
 
   if (verbose) {
-    const { probability: targetSocProbability } =
-      calculateTargetSocReachProbability(vehicle, schedule, forecasts);
+    const targetSocProbability = calculateTargetSocReachProbability(
+      vehicle,
+      schedule,
+      forecasts,
+    );
 
     console.error(
       `Probability to reach target SoC: ${(targetSocProbability * 100).toFixed(1)}%`,

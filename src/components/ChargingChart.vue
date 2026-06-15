@@ -111,7 +111,7 @@ const targetSocProbability = computed(() => {
     selectedVehicle.value,
     schedule.value,
     activeForecast.value,
-  ).probability;
+  );
 });
 
 const chartAxisLabels = computed(() =>
