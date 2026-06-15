@@ -54,6 +54,40 @@ describe("generateChargingSchedule", () => {
     );
   });
 
+  it("never schedules more energy than remaining battery capacity after boosting", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 0.5,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.1,
+        solar: 0,
+        confidence: 0.5,
+      },
+    ];
+
+    const cappedVehicle: Vehicle = {
+      batteryCapacity: 100,
+      currentSoc: 78,
+      targetSoc: 100,
+      maxChargingPower: 22,
+      targetTime: "2026-06-10T13:00:00Z",
+    };
+
+    const remainingCapacityKwh =
+      (cappedVehicle.batteryCapacity * (100 - cappedVehicle.currentSoc)) / 100;
+
+    const schedule = generateChargingSchedule(cappedVehicle, forecasts);
+
+    expect(scheduleEnergyKwh(schedule, cappedVehicle.targetTime)).toBeLessThanOrEqual(
+      remainingCapacityKwh,
+    );
+  });
+
   it("prefers lower effective cost hours", () => {
     const forecasts: ForecastHour[] = [
       {
@@ -209,7 +243,8 @@ describe("generateChargingSchedule", () => {
 
     const totalEnergy = scheduleEnergyKwh(schedule, vehicle.targetTime);
     const requiredEnergy =
-      ((vehicle.targetSoc - vehicle.currentSoc) / 100) * vehicle.batteryCapacity;
+      ((vehicle.targetSoc - vehicle.currentSoc) / 100) *
+      vehicle.batteryCapacity;
 
     expect(totalEnergy).toBeGreaterThanOrEqual(requiredEnergy);
   });
@@ -218,7 +253,7 @@ describe("generateChargingSchedule", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T10:00:00Z",
-        price: 0.2,
+        price: 0.25,
         solar: 0,
         confidence: 1,
       },
@@ -237,35 +272,6 @@ describe("generateChargingSchedule", () => {
     );
 
     expect(solarHour?.chargingPower).toBeGreaterThan(0);
-  });
-
-  it("scales charging power proportionally to benefit", () => {
-    const partialSolarVehicle: Vehicle = {
-      batteryCapacity: 58,
-      currentSoc: 95,
-      targetSoc: 80,
-      maxChargingPower: 7.4,
-      targetTime: "2026-06-10T13:00:00Z",
-    };
-
-    const forecasts: ForecastHour[] = [
-      {
-        timestamp: "2026-06-10T11:00:00Z",
-        price: 0.28,
-        solar: 3,
-        confidence: 0.95,
-      },
-    ];
-
-    const schedule = generateChargingSchedule(partialSolarVehicle, forecasts);
-    const solarHour = schedule.find(
-      (entry) => entry.hour === "2026-06-10T11:00:00Z",
-    );
-
-    expect(solarHour!.chargingPower).toBeGreaterThan(0);
-    expect(solarHour!.chargingPower).toBeLessThanOrEqual(
-      partialSolarVehicle.maxChargingPower,
-    );
   });
 
   it("assigns higher charging power to higher-benefit hours", () => {

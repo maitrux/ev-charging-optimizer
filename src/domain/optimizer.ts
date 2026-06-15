@@ -108,13 +108,14 @@ function boostChargingPower(
 }
 
 /**
- * Tries to increase the schedule until the confidence-weighted expected energy
+ * Tries to increase the schedule until the expected energy
  * reaches the required energy.
  */
 function increasePowerToReachTarget(
   slots: ChargingSlot[],
   requiredEnergyKwh: number,
   maxChargingPowerKw: number,
+  remainingCapacityKwh: number,
 ): ChargingSlot[] {
   let adjustedSlots = slots;
 
@@ -127,11 +128,17 @@ function increasePowerToReachTarget(
 
     const boostRatio = requiredEnergyKwh / expectedEnergyKwh;
 
-    adjustedSlots = boostChargingPower(
+    const boostedSlots = boostChargingPower(
       adjustedSlots,
       boostRatio,
       maxChargingPowerKw,
     );
+
+    if (getTotalScheduledEnergyKwh(boostedSlots) > remainingCapacityKwh) {
+      break;
+    }
+
+    adjustedSlots = boostedSlots;
   }
 
   return adjustedSlots;
@@ -177,6 +184,7 @@ export function generateChargingSchedule(
     initialSlots,
     requiredEnergyKwh,
     vehicle.maxChargingPower,
+    remainingCapacityKwh,
   );
 
   return boostedSlots.map((slot) => ({
