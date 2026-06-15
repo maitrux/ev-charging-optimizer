@@ -10,15 +10,6 @@ import { minimumRequiredEnergyKwh } from "./target-soc-probability";
 
 const MAX_BOOST_ITERATIONS = 10;
 
-function round(value: number, decimals = 2): number {
-  return Number(value.toFixed(decimals));
-}
-
-function remainingBatteryCapacityKwh(vehicle: Vehicle): number {
-  const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
-  return vehicle.batteryCapacity - currentEnergyKwh;
-}
-
 interface ChargingSlot {
   hour: string;
 
@@ -30,6 +21,15 @@ interface ChargingSlot {
 
   /** Slot duration, in hours. Usually 1, but may be shorter if the target time is in the middle of the slot. */
   durationHours: number;
+}
+
+function round(value: number, decimals = 2): number {
+  return Number(value.toFixed(decimals));
+}
+
+function remainingBatteryCapacityKwh(vehicle: Vehicle): number {
+  const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
+  return vehicle.batteryCapacity - currentEnergyKwh;
 }
 
 function sum(values: number[]): number {
