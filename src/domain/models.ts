@@ -25,9 +25,13 @@ export interface NamedVehicle extends Vehicle {
 export interface ScheduleEntry {
   /**
    * Start time of the charging slot as an ISO timestamp.
-   * 'hour' would be a better name for this property.
+   *
+   *
+   * NOTE: 'timestamp' would be a more descriptive name for this property.
+   * However, output property 'hour' was requested in the take-home assignment.
    */
   hour: string;
+  /** Scheduled charging power in kW. */
   chargingPower: number;
 }
 

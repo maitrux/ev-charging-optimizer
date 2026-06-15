@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import type { ForecastHour, Vehicle } from "../domain/models";
+import { getChargingSlotDurationHours } from "../domain/datetime";
+import type { ForecastHour, ScheduleEntry, Vehicle } from "../domain/models";
 import { generateChargingSchedule } from "../domain/optimizer";
+
+function scheduleEnergyKwh(
+  schedule: ScheduleEntry[],
+  targetTime: string,
+): number {
+  return schedule.reduce(
+    (sum, entry) =>
+      sum +
+      entry.chargingPower *
+        getChargingSlotDurationHours(entry.hour, targetTime),
+    0,
+  );
+}
 
 const vehicle: Vehicle = {
   batteryCapacity: 100,
@@ -98,7 +112,7 @@ describe("generateChargingSchedule", () => {
     ]);
   });
 
-  it("scales energy in the final hour bucket by the remaining time until target", () => {
+  it("returns charging power in kW for a partial final hour bucket", () => {
     const forecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T13:00:00Z",
@@ -120,7 +134,7 @@ describe("generateChargingSchedule", () => {
     );
 
     expect(scheduleAtHalfHour).toEqual([
-      { hour: "2026-06-10T13:00:00Z", chargingPower: 4.5 },
+      { hour: "2026-06-10T13:00:00Z", chargingPower: 9 },
     ]);
 
     const scheduleAtTwentyOneMinutes = generateChargingSchedule(
@@ -135,7 +149,7 @@ describe("generateChargingSchedule", () => {
     );
 
     expect(scheduleAtTwentyOneMinutes).toEqual([
-      { hour: "2026-06-10T13:00:00Z", chargingPower: 3.15 },
+      { hour: "2026-06-10T13:00:00Z", chargingPower: 9 },
     ]);
   });
 
@@ -193,10 +207,7 @@ describe("generateChargingSchedule", () => {
 
     const schedule = generateChargingSchedule(vehicle, forecasts);
 
-    const totalEnergy = schedule.reduce(
-      (sum, entry) => sum + entry.chargingPower,
-      0,
-    );
+    const totalEnergy = scheduleEnergyKwh(schedule, vehicle.targetTime);
     const requiredEnergy =
       ((vehicle.targetSoc - vehicle.currentSoc) / 100) * vehicle.batteryCapacity;
 
@@ -344,10 +355,7 @@ describe("generateChargingSchedule", () => {
     };
 
     const schedule = generateChargingSchedule(tesla, forecasts);
-    const totalEnergy = schedule.reduce(
-      (sum, entry) => sum + entry.chargingPower,
-      0,
-    );
+    const totalEnergy = scheduleEnergyKwh(schedule, tesla.targetTime);
     const minimumEnergy =
       ((tesla.targetSoc - tesla.currentSoc) / 100) * tesla.batteryCapacity;
 
@@ -443,7 +451,12 @@ describe("generateChargingSchedule", () => {
         continue;
       }
 
-      currentEnergy += entry.chargingPower;
+      currentEnergy +=
+        entry.chargingPower *
+        getChargingSlotDurationHours(
+          entry.hour,
+          smallBatteryVehicle.targetTime,
+        );
 
       if (currentEnergy >= smallBatteryVehicle.batteryCapacity) {
         batteryFull = true;

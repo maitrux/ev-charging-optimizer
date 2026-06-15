@@ -1,11 +1,12 @@
+import { getChargingSlotDurationHours } from "./datetime";
 import { forEachBooleanCombination } from "./for-each-boolean-combination";
 import type { ForecastHour, ScheduleEntry, Vehicle } from "./models";
 
 export interface ChargingHour {
   /** p(i): probability of a successful connection at this hour. */
   connectionProbability: number;
-  /** Scheduled charging power in kW (= kWh for a 1-hour slot). */
-  chargingPowerKw: number;
+  /** Energy delivered in this slot when connected, in kWh. */
+  energy: number;
 }
 
 export interface TargetSocProbabilityResult {
@@ -16,10 +17,8 @@ export interface TargetSocProbabilityResult {
 }
 
 export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
-  const currentEnergyKwh =
-    vehicle.batteryCapacity * (vehicle.currentSoc / 100);
-  const targetEnergyKwh =
-    vehicle.batteryCapacity * (vehicle.targetSoc / 100);
+  const currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
+  const targetEnergyKwh = vehicle.batteryCapacity * (vehicle.targetSoc / 100);
 
   return Math.max(0, targetEnergyKwh - currentEnergyKwh);
 }
@@ -37,7 +36,7 @@ export function calculateTargetSocProbability(
     return 1;
   }
 
-  const activeHours = hours.filter((hour) => hour.chargingPowerKw > 0);
+  const activeHours = hours.filter((hour) => hour.energy > 0);
 
   if (activeHours.length === 0) {
     return 0;
@@ -54,7 +53,7 @@ export function calculateTargetSocProbability(
 
       if (connected[index]) {
         probability *= hour.connectionProbability;
-        energyKwh += hour.chargingPowerKw;
+        energyKwh += hour.energy;
       } else {
         probability *= 1 - hour.connectionProbability;
       }
@@ -79,7 +78,9 @@ export function calculateTargetSocReachProbability(
 
   const hours = schedule.map((entry) => ({
     connectionProbability: forecastByHour.get(entry.hour)?.confidence ?? 0,
-    chargingPowerKw: entry.chargingPower,
+    energy:
+      entry.chargingPower *
+      getChargingSlotDurationHours(entry.hour, vehicle.targetTime),
   }));
 
   const requiredEnergyKwh = minimumRequiredEnergyKwh(vehicle);

@@ -13,8 +13,8 @@ function normalizeSolar(
   return normalizeInRange(solar, minSolar, maxSolar);
 }
 
-/** Cheap hours score higher: invert the price curve, then normalize. */
-function normalizePrice(
+/** Invert the price curve, then normalize. */
+function invertAndNormalizePrice(
   price: number,
   minPrice: number,
   maxPrice: number,
@@ -24,6 +24,15 @@ function normalizePrice(
   return normalizeInRange(invertedPrice, minPrice, maxPrice);
 }
 
+/**
+ * Calculate benefit:
+ * 1. Normalize solar
+ * 2. Invert and normalize price
+ * 3. Combined score = normalized solar × normalized price
+ * 4. Normalize combined scores
+ * 5. Multiply normalized combined scores by plug-in confidence to get raw benefits
+ * 6. Normalize raw benefits
+ */
 export function scoreForecastHours(
   forecasts: ForecastHour[],
 ): ScoredForecastHour[] {
@@ -34,7 +43,11 @@ export function scoreForecastHours(
 
   const combinedScores = forecasts.map((hour) => {
     const normalizedSolar = normalizeSolar(hour.solar, minSolar, maxSolar);
-    const normalizedPrice = normalizePrice(hour.price, minPrice, maxPrice);
+    const normalizedPrice = invertAndNormalizePrice(
+      hour.price,
+      minPrice,
+      maxPrice,
+    );
 
     return normalizedSolar * normalizedPrice;
   });
@@ -43,13 +56,13 @@ export function scoreForecastHours(
   const maxCombinedScore = Math.max(...combinedScores);
 
   const withConfidence = forecasts.map((hour, index) => {
-    const normalizedSum = normalizeInRange(
+    const normalizedCombinedScore = normalizeInRange(
       combinedScores[index],
       minCombinedScore,
       maxCombinedScore,
     );
 
-    return normalizedSum * hour.confidence;
+    return normalizedCombinedScore * hour.confidence;
   });
 
   const minWithConfidence = Math.min(...withConfidence);
