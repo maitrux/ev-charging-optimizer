@@ -32,13 +32,13 @@ describe("scoreForecastHours", () => {
       {
         timestamp: "2026-06-10T10:00:00Z",
         price: 0.3,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
       {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.3,
-        solar: 0,
+        solar: 5,
         confidence: 0.5,
       },
     ];
@@ -55,20 +55,20 @@ describe("scoreForecastHours", () => {
       {
         timestamp: "2026-06-10T10:00:00Z",
         price: 0.5,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
       {
         timestamp: "2026-06-10T11:00:00Z",
         price: 0.1,
-        solar: 0,
+        solar: 5,
         confidence: 1,
       },
     ];
 
-    expect(
-      benefitFor(forecasts, "2026-06-10T11:00:00Z"),
-    ).toBeGreaterThan(benefitFor(forecasts, "2026-06-10T10:00:00Z"));
+    expect(benefitFor(forecasts, "2026-06-10T11:00:00Z")).toBeGreaterThan(
+      benefitFor(forecasts, "2026-06-10T10:00:00Z"),
+    );
   });
 
   it("prefers higher solar when price is equal", () => {
@@ -87,9 +87,9 @@ describe("scoreForecastHours", () => {
       },
     ];
 
-    expect(
-      benefitFor(forecasts, "2026-06-10T11:00:00Z"),
-    ).toBeGreaterThan(benefitFor(forecasts, "2026-06-10T10:00:00Z"));
+    expect(benefitFor(forecasts, "2026-06-10T11:00:00Z")).toBeGreaterThan(
+      benefitFor(forecasts, "2026-06-10T10:00:00Z"),
+    );
   });
 
   it("assigns benefit 1 to the best hour in the horizon", () => {
@@ -164,9 +164,30 @@ describe("scoreForecastHours", () => {
 
     expect(worst).toBe(0);
     expect(best).toBe(1);
-    expect(middle).toBeCloseTo(0.5, 5);
+    expect(middle).toBeCloseTo(8 / 15, 5);
     expect(middle).toBeGreaterThan(worst);
     expect(middle).toBeLessThan(best);
+  });
+
+  it("returns 0 benefit when all prices are zero", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0,
+        solar: 5,
+        confidence: 1,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0,
+        solar: 10,
+        confidence: 1,
+      },
+    ];
+
+    for (const hour of scoreForecastHours(forecasts)) {
+      expect(hour.benefit).toBe(0);
+    }
   });
 
   it("preserves the original forecast fields on each scored hour", () => {

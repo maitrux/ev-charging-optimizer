@@ -1,82 +1,60 @@
 import type { ForecastHour, ScoredForecastHour } from "./models";
 
-function normalizeInRange(value: number, min: number, max: number): number {
-  if (max === min) return 1;
-  return (value - min) / (max - min);
-}
+/**
+ *
+ * @param forecasts
+ * @returns array of hourly benefits
+ */
+export function calculateBenefits(forecasts: ForecastHour[]): number[] {
+  const minPrice = Math.min(...forecasts.map((hour) => hour.price));
+  const maxPrice = Math.max(...forecasts.map((hour) => hour.price));
 
-function normalizeSolar(
-  solar: number,
-  minSolar: number,
-  maxSolar: number,
-): number {
-  return normalizeInRange(solar, minSolar, maxSolar);
-}
+  const maxSolar = Math.max(...forecasts.map((hour) => hour.solar));
 
-/** Invert the price curve, then normalize. */
-function invertAndNormalizePrice(
-  price: number,
-  minPrice: number,
-  maxPrice: number,
-): number {
-  const invertedPrice = minPrice + maxPrice - price;
+  const combinedScores = forecasts.map((hour) => {
+    let normalizedSolar = 0;
+    if (maxSolar === 0) {
+      normalizedSolar = 0;
+    } else {
+      normalizedSolar = hour.solar / maxSolar;
+    }
 
-  return normalizeInRange(invertedPrice, minPrice, maxPrice);
+    let normalizedPrice = 0;
+    if (maxPrice === 0) {
+      normalizedPrice = 0;
+    } else {
+      let invertedPrice = minPrice + maxPrice - hour.price;
+      normalizedPrice = invertedPrice / maxPrice;
+    }
+
+    return normalizedSolar * normalizedPrice * hour.confidence;
+  });
+
+  const maxCombinedScore = Math.max(...combinedScores);
+
+  return combinedScores.map((score) => {
+    if (maxCombinedScore === 0) {
+      return 0;
+    } else {
+      return score / maxCombinedScore;
+    }
+  });
 }
 
 /**
- * Compute benefit for each forecast hour:
- * 1. normalizedSolar = Normalize solar
- * 2. invertedAndNormalizedPrice = Invert price, then normalize
- * 3. combined = normalizedSolar × invertedAndNormalizedPrice
- * 4. normalizedCombined = normalize combined
- * 5. combinedWithConfidence = normalizedCombined × plug-in confidence
- * 6. benefit = normalize combinedWithConfidence
+ * Compute benefit score for each forecast hour:
+ * - normalizedSolar = normalize solar
+ * - normalizedPrice = invert price, then normalize
+ * - combinedScores = normalizedSolar × normalizedPrice × plug-in confidence
+ * - benefit = normalize combinedScores
  */
 export function scoreForecastHours(
   forecasts: ForecastHour[],
 ): ScoredForecastHour[] {
-  const minPrice = Math.min(...forecasts.map((hour) => hour.price));
-  const maxPrice = Math.max(...forecasts.map((hour) => hour.price));
-  const minSolar = Math.min(...forecasts.map((hour) => hour.solar));
-  const maxSolar = Math.max(...forecasts.map((hour) => hour.solar));
-
-  const combinedScores = forecasts.map((hour) => {
-    const normalizedSolar = normalizeSolar(hour.solar, minSolar, maxSolar);
-    const normalizedPrice = invertAndNormalizePrice(
-      hour.price,
-      minPrice,
-      maxPrice,
-    );
-
-    return normalizedSolar * normalizedPrice;
-  });
-
-  const minCombinedScore = Math.min(...combinedScores);
-  const maxCombinedScore = Math.max(...combinedScores);
-
-  const withConfidence = forecasts.map((hour, index) => {
-    const normalizedCombinedScore = normalizeInRange(
-      combinedScores[index],
-      minCombinedScore,
-      maxCombinedScore,
-    );
-
-    return normalizedCombinedScore * hour.confidence;
-  });
-
-  const minWithConfidence = Math.min(...withConfidence);
-  const maxWithConfidence = Math.max(...withConfidence);
+  const normalizedCombinedScore = calculateBenefits(forecasts);
 
   return forecasts.map((hour, index) => ({
     ...hour,
-    benefit:
-      maxWithConfidence === 0
-        ? 0
-        : normalizeInRange(
-            withConfidence[index],
-            minWithConfidence,
-            maxWithConfidence,
-          ),
+    benefit: normalizedCombinedScore[index],
   }));
 }
