@@ -58,37 +58,11 @@ function getExpectedEnergyKwh(slots: ChargingSlot[]): number {
   return sum(slots.map((slot) => getSlotEnergyKwh(slot) * slot.confidence));
 }
 
-/**
- * Ensures the schedule never charges more energy than the battery can still accept.
- *
- * If the total scheduled energy exceeds the remaining battery capacity,
- * all charging powers are scaled down proportionally while preserving the
- * relative distribution between charging slots.
- */
-function scaleToBatteryCapacity(
-  slots: ChargingSlot[],
-  remainingCapacityKwh: number,
-): ChargingSlot[] {
-  const totalEnergyKwh = getTotalScheduledEnergyKwh(slots);
-
-  if (totalEnergyKwh <= remainingCapacityKwh) {
-    return slots;
-  }
-
-  const capacityScale = remainingCapacityKwh / totalEnergyKwh;
-
-  return slots.map((slot) => ({
-    ...slot,
-    chargingPowerKw: slot.chargingPowerKw * capacityScale,
-  }));
-}
-
 function createInitialChargingSlots(
   vehicle: Vehicle,
   scoredHours: ScoredForecastHour[],
-  remainingCapacityKwh: number,
 ): ChargingSlot[] {
-  const slots = scoredHours.map((hour) => {
+  return scoredHours.map((hour) => {
     const durationHours = getChargingSlotDurationHours(
       hour.timestamp,
       vehicle.targetTime,
@@ -107,8 +81,6 @@ function createInitialChargingSlots(
       durationHours,
     };
   });
-
-  return scaleToBatteryCapacity(slots, remainingCapacityKwh);
 }
 
 /**
@@ -144,8 +116,6 @@ function increasePowerToReachTarget(
   for (let i = 0; i < MAX_BOOST_ITERATIONS; i++) {
     const expectedEnergyKwh = getExpectedEnergyKwh(adjustedSlots);
 
-    // Stop once the expected energy is sufficient or no further progress
-    // can be made.
     if (expectedEnergyKwh >= requiredEnergyKwh || expectedEnergyKwh <= 0) {
       break;
     }
@@ -158,16 +128,11 @@ function increasePowerToReachTarget(
       maxChargingPowerKw,
     );
 
-    // Boosting can increase the total scheduled energy beyond the remaining
-    // battery capacity. Scale the entire schedule down proportionally so
-    // that the battery capacity constraint is still respected.
-    adjustedSlots = scaleToBatteryCapacity(boostedSlots, remainingCapacityKwh);
-
-    // If the battery is already fully allocated, further iterations can only
-    // redistribute energy and will not increase the total scheduled energy.
-    if (getTotalScheduledEnergyKwh(adjustedSlots) >= remainingCapacityKwh) {
+    if (getTotalScheduledEnergyKwh(boostedSlots) > remainingCapacityKwh) {
       break;
     }
+
+    adjustedSlots = boostedSlots;
   }
 
   return adjustedSlots;
@@ -178,7 +143,6 @@ function increasePowerToReachTarget(
  * - scores forecast hours by benefit (how attractive the hour is to charge the vehicle)
  * - iterates to increase the charging power until the expected energy reaches the required energy,
  * - never exceeds the vehicle's maximum charging power,
- * - never schedules more energy than the battery capacity allows.
  */
 export function generateChargingSchedule(
   vehicle: Vehicle,
@@ -204,11 +168,7 @@ export function generateChargingSchedule(
     requiredEnergyKwh = remainingCapacityKwh;
   }
 
-  const initialSlots = createInitialChargingSlots(
-    vehicle,
-    scoredHours,
-    remainingCapacityKwh,
-  );
+  const initialSlots = createInitialChargingSlots(vehicle, scoredHours);
 
   const boostedSlots = increasePowerToReachTarget(
     initialSlots,

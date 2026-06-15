@@ -54,40 +54,6 @@ describe("generateChargingSchedule", () => {
     );
   });
 
-  it("never schedules more energy than remaining battery capacity after boosting", () => {
-    const forecasts: ForecastHour[] = [
-      {
-        timestamp: "2026-06-10T10:00:00Z",
-        price: 0.1,
-        solar: 0,
-        confidence: 0.5,
-      },
-      {
-        timestamp: "2026-06-10T11:00:00Z",
-        price: 0.1,
-        solar: 0,
-        confidence: 0.5,
-      },
-    ];
-
-    const cappedVehicle: Vehicle = {
-      batteryCapacity: 100,
-      currentSoc: 78,
-      targetSoc: 100,
-      maxChargingPower: 22,
-      targetTime: "2026-06-10T13:00:00Z",
-    };
-
-    const remainingCapacityKwh =
-      (cappedVehicle.batteryCapacity * (100 - cappedVehicle.currentSoc)) / 100;
-
-    const schedule = generateChargingSchedule(cappedVehicle, forecasts);
-
-    expect(scheduleEnergyKwh(schedule, cappedVehicle.targetTime)).toBeLessThanOrEqual(
-      remainingCapacityKwh,
-    );
-  });
-
   it("caps required energy at remaining battery capacity when target exceeds what fits", () => {
     const forecasts: ForecastHour[] = [
       {
@@ -113,10 +79,50 @@ describe("generateChargingSchedule", () => {
 
     const schedule = generateChargingSchedule(overTargetVehicle, forecasts);
 
-    expect(scheduleEnergyKwh(schedule, overTargetVehicle.targetTime)).toBeLessThanOrEqual(
-      remainingCapacityKwh,
-    );
+    expect(
+      scheduleEnergyKwh(schedule, overTargetVehicle.targetTime),
+    ).toBeLessThanOrEqual(remainingCapacityKwh);
     expect(schedule[0].chargingPower).toBeGreaterThan(0);
+  });
+
+  it("skips a boost iteration when it would exceed remaining battery capacity", () => {
+    const forecasts: ForecastHour[] = [
+      {
+        timestamp: "2026-06-10T10:00:00Z",
+        price: 0.1,
+        solar: 5,
+        confidence: 0.5,
+      },
+      {
+        timestamp: "2026-06-10T11:00:00Z",
+        price: 0.15,
+        solar: 4,
+        confidence: 0.5,
+      },
+      {
+        timestamp: "2026-06-10T12:00:00Z",
+        price: 0.2,
+        solar: 3,
+        confidence: 0.5,
+      },
+    ];
+
+    const cappedVehicle: Vehicle = {
+      batteryCapacity: 100,
+      currentSoc: 78,
+      targetSoc: 100,
+      maxChargingPower: 22,
+      targetTime: "2026-06-10T13:00:00Z",
+    };
+
+    const schedule = generateChargingSchedule(cappedVehicle, forecasts);
+
+    expect(scheduleEnergyKwh(schedule, cappedVehicle.targetTime)).toBe(27.5);
+    expect(schedule).toEqual([
+      { hour: "2026-06-10T10:00:00Z", chargingPower: 22 },
+      { hour: "2026-06-10T11:00:00Z", chargingPower: 5.5 },
+      { hour: "2026-06-10T12:00:00Z", chargingPower: 0 },
+    ]);
   });
 
   it("prefers lower effective cost hours", () => {
@@ -444,61 +450,6 @@ describe("generateChargingSchedule", () => {
     );
 
     expect(peakHour!.chargingPower).toBeGreaterThan(earlyHour!.chargingPower);
-  });
-
-  it("does not charge after the battery is full chronologically", () => {
-    const forecasts: ForecastHour[] = [
-      {
-        timestamp: "2026-06-10T10:00:00Z",
-        price: 0.1,
-        solar: 0,
-        confidence: 1,
-      },
-      {
-        timestamp: "2026-06-10T11:00:00Z",
-        price: 0.1,
-        solar: 0,
-        confidence: 1,
-      },
-      {
-        timestamp: "2026-06-10T12:00:00Z",
-        price: 0.1,
-        solar: 0,
-        confidence: 1,
-      },
-    ];
-
-    const smallBatteryVehicle: Vehicle = {
-      batteryCapacity: 20,
-      currentSoc: 50,
-      targetSoc: 70,
-      maxChargingPower: 10,
-      targetTime: "2026-06-10T13:00:00Z",
-    };
-
-    const schedule = generateChargingSchedule(smallBatteryVehicle, forecasts);
-    let currentEnergy =
-      (smallBatteryVehicle.currentSoc / 100) *
-      smallBatteryVehicle.batteryCapacity;
-    let batteryFull = false;
-
-    for (const entry of schedule) {
-      if (batteryFull) {
-        expect(entry.chargingPower).toBe(0);
-        continue;
-      }
-
-      currentEnergy +=
-        entry.chargingPower *
-        getChargingSlotDurationHours(
-          entry.hour,
-          smallBatteryVehicle.targetTime,
-        );
-
-      if (currentEnergy >= smallBatteryVehicle.batteryCapacity) {
-        batteryFull = true;
-      }
-    }
   });
 
   it("prefers a more reliable charging opportunity", () => {
