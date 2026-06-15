@@ -127,7 +127,7 @@ flowchart LR
 
   P --> NP["Invert + normalize<br/>cheap = high"]
   SO --> NS["Normalize<br/>more solar = high"]
-  NP --> COMB["benefit = normalize(solar x price) x confidence"]
+  NP --> COMB["benefit = normalizedSolar x normalizedPrice x confidence"]
   NS --> COMB
   COMB --> BEN["Normalize benefit to 0-1"]
   BEN --> OUT["chargingPower = maxPower x benefit"]
@@ -257,9 +257,10 @@ pnpm test:coverage
 ## Limitations
 
 - Constrain of maximum 24 hour forecast
-- The algorithm doesn't allow negative electricity prices. Negative electricity prices are at least possible in Finland.
-- Price, solar and confidence coefficients are equal. These could be emphasized by different factors.
-- O(2^n) probability calculation. Works with a 24 hour dataset but would take too long with with a large number of forecast hours.
+- The algorithm doesn't allow negative electricity prices as inputs. Negative electricity prices are at least possible in Finland.
+- Price, solar and confidence coefficients are equal. These could be emphasized by different coefficients.
+- O(2^n) probability calculation. Works with a 24 hour dataset but would take too long with a large number of forecast hours.
+- The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting can increase charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC.
 - Algorithm doesn't work for the edge case where the target time is too close to the first forecast hour.
 
 ## Tech stack

@@ -550,7 +550,7 @@ async function handleForecastUpload(event: Event) {
             @click="openForecastUpload"
           >
             <v-icon start>mdi-upload</v-icon>
-            Upload JSON
+            Upload forecast (JSON)
           </v-btn>
         </div>
 
