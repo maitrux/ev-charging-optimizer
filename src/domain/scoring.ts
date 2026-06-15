@@ -25,13 +25,13 @@ function invertAndNormalizePrice(
 }
 
 /**
- * Calculate benefit:
- * 1. Normalize solar
- * 2. Invert and normalize price
- * 3. Combined score = normalized solar × normalized price
- * 4. Normalize combined scores
- * 5. Multiply normalized combined scores by plug-in confidence to get raw benefits
- * 6. Normalize raw benefits
+ * Compute benefit for each forecast hour:
+ * 1. normalizedSolar = Normalize solar
+ * 2. invertedAndNormalizedPrice = Invert price, then normalize
+ * 3. combined = normalizedSolar × invertedAndNormalizedPrice
+ * 4. normalizedCombined = normalize combined
+ * 5. combinedWithConfidence = normalizedCombined × plug-in confidence
+ * 6. benefit = normalize combinedWithConfidence
  */
 export function scoreForecastHours(
   forecasts: ForecastHour[],
