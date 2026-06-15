@@ -41,16 +41,22 @@ use([
   MarkLineComponent,
 ]);
 
+type ForecastSource = "default" | "full-day" | "uploaded";
+
+const chartGridCount = 5;
+
 const vehicles = ref<NamedVehicle[]>([...sampleVehicles]);
 const selectedVehicleName = ref(vehicles.value[0].name);
 
-type ForecastSource = "default" | "full-day" | "uploaded";
-
-const selectedForecastSource = ref<ForecastSource>("default");
+const selectedForecastSource = ref<ForecastSource | null>("default");
 const uploadedForecast = ref<ForecastHour[] | null>(null);
 const uploadedForecastName = ref<string | null>(null);
 const forecastUploadError = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const vehicleNames = computed(() =>
+  vehicles.value.map((vehicle) => vehicle.name),
+);
 
 const forecastSourceOptions = computed(() => {
   const options: { title: string; value: ForecastSource }[] = [
@@ -69,6 +75,10 @@ const forecastSourceOptions = computed(() => {
 });
 
 const activeForecast = computed(() => {
+  if (!selectedForecastSource.value) {
+    return [];
+  }
+
   if (selectedForecastSource.value === "uploaded" && uploadedForecast.value) {
     return uploadedForecast.value;
   }
@@ -84,28 +94,67 @@ const selectedVehicle = computed(() =>
   vehicles.value.find((vehicle) => vehicle.name === selectedVehicleName.value),
 );
 
+const forecastTimestamps = computed(() =>
+  activeForecast.value.map((forecast) => forecast.timestamp),
+);
+
+const chartAxisLabels = computed(() =>
+  formatChartAxisLabels(forecastTimestamps.value),
+);
+
+const chartXAxisMax = computed(() =>
+  Math.max(0, activeForecast.value.length - 1),
+);
+
+const targetTimeChartPosition = computed(() => {
+  if (!selectedVehicle.value) return 0;
+
+  return getTargetTimeChartAxisPosition(
+    forecastTimestamps.value,
+    selectedVehicle.value.targetTime,
+  );
+});
+
 const scheduleValidationError = computed(() => {
-  if (!selectedVehicle.value) return null;
+  if (!selectedVehicle.value || !selectedForecastSource.value) return null;
 
   try {
     validateTargetTimeWithinForecast(
       selectedVehicle.value,
       activeForecast.value,
     );
+
     return null;
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
   }
 });
 
+const canShowChart = computed(
+  () =>
+    Boolean(selectedVehicle.value) &&
+    Boolean(selectedForecastSource.value) &&
+    !scheduleValidationError.value &&
+    !forecastUploadError.value,
+);
+
 const schedule = computed(() => {
-  if (!selectedVehicle.value || scheduleValidationError.value) return [];
+  if (!selectedVehicle.value || scheduleValidationError.value) {
+    return [];
+  }
 
   return generateChargingSchedule(selectedVehicle.value, activeForecast.value);
 });
 
+const scheduleByHour = computed(
+  () =>
+    new Map(schedule.value.map((entry) => [entry.hour, entry.chargingPower])),
+);
+
 const targetSocProbability = computed(() => {
-  if (!selectedVehicle.value || scheduleValidationError.value) return null;
+  if (!selectedVehicle.value || scheduleValidationError.value) {
+    return null;
+  }
 
   return calculateTargetSocReachProbability(
     selectedVehicle.value,
@@ -114,75 +163,45 @@ const targetSocProbability = computed(() => {
   );
 });
 
-const chartAxisLabels = computed(() =>
-  formatChartAxisLabels(
-    activeForecast.value.map((forecast) => forecast.timestamp),
-  ),
-);
+const formattedTargetSocProbability = computed(() => {
+  if (targetSocProbability.value === null) return "";
 
-const targetTimeChartPosition = computed(() => {
-  if (!selectedVehicle.value) return 0;
-
-  return getTargetTimeChartAxisPosition(
-    activeForecast.value.map((forecast) => forecast.timestamp),
-    selectedVehicle.value.targetTime,
-  );
+  return `${(targetSocProbability.value * 100).toFixed(1)}%`;
 });
-
-const chartXAxisMax = computed(() =>
-  Math.max(0, activeForecast.value.length - 1),
-);
-
-function toIndexedSeriesData(values: Array<number | null>) {
-  return values.map((value, index) => [index, value]);
-}
-
-function seriesValue(value: unknown): number | null {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (Array.isArray(value)) {
-    return value[1] as number;
-  }
-
-  return Number(value);
-}
-
-const scheduleByHour = computed(
-  () =>
-    new Map(schedule.value.map((entry) => [entry.hour, entry.chargingPower])),
-);
 
 const chargingPowerData = computed(() =>
   activeForecast.value.map(
     (forecast) => scheduleByHour.value.get(forecast.timestamp) ?? 0,
   ),
 );
+
 const priceData = computed(() =>
-  activeForecast.value.map((item) => item.price),
+  activeForecast.value.map((forecast) => forecast.price),
 );
 
 const solarData = computed(() =>
-  activeForecast.value.map((item) => item.solar),
+  activeForecast.value.map((forecast) => forecast.solar),
 );
 
 const confidenceData = computed(() =>
-  activeForecast.value.map((item) => item.confidence),
+  activeForecast.value.map((forecast) => forecast.confidence),
 );
 
 const benefitByTimestamp = computed(() => {
   if (!selectedVehicle.value) return new Map<string, number>();
 
   const targetTime = new Date(selectedVehicle.value.targetTime).getTime();
-  const usableForecasts = activeForecast.value.filter(
-    (forecast) => new Date(forecast.timestamp).getTime() <= targetTime,
-  );
+
+  const usableForecasts = activeForecast.value.filter((forecast) => {
+    const forecastTime = new Date(forecast.timestamp).getTime();
+
+    return forecastTime <= targetTime;
+  });
 
   return new Map(
-    scoreForecastHours(usableForecasts).map((hour) => [
-      hour.timestamp,
-      hour.benefit,
+    scoreForecastHours(usableForecasts).map((forecast) => [
+      forecast.timestamp,
+      forecast.benefit,
     ]),
   );
 });
@@ -194,72 +213,92 @@ const benefitData = computed(() =>
 );
 
 const socData = computed(() => {
-  if (!selectedVehicle.value) return [];
+  const vehicle = selectedVehicle.value;
 
-  let currentEnergy =
-    selectedVehicle.value.batteryCapacity *
-    (selectedVehicle.value.currentSoc / 100);
+  if (!vehicle) return [];
+
+  let currentEnergyKwh = vehicle.batteryCapacity * (vehicle.currentSoc / 100);
 
   return activeForecast.value.map((forecast) => {
-    currentEnergy += scheduleByHour.value.get(forecast.timestamp) ?? 0;
+    const chargingPower = scheduleByHour.value.get(forecast.timestamp) ?? 0;
 
-    const soc = (currentEnergy / selectedVehicle.value!.batteryCapacity) * 100;
+    currentEnergyKwh += chargingPower;
+
+    const soc = (currentEnergyKwh / vehicle.batteryCapacity) * 100;
 
     return Math.min(Math.round(soc), 100);
   });
 });
 
+function toIndexedSeriesData(values: Array<number | null>) {
+  return values.map((value, index) => [index, value]);
+}
+
+function seriesValue(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return Number(value[1]);
+  }
+
+  return Number(value);
+}
+
+function formatTooltip(params: unknown) {
+  if (!Array.isArray(params) || params.length === 0) return "";
+
+  const index = params[0]?.dataIndex ?? 0;
+  const forecast = activeForecast.value[index];
+
+  if (!forecast) return "";
+
+  const lines = [
+    `<strong>${formatDateTimeDeDe(forecast.timestamp)}</strong>`,
+    `Price: ${forecast.price.toFixed(2)} €/kWh`,
+    `Solar: ${forecast.solar.toFixed(1)} kWh`,
+    `Plug-in confidence: ${(forecast.confidence * 100).toFixed(0)}%`,
+  ];
+
+  const benefit = benefitByTimestamp.value.get(forecast.timestamp);
+
+  if (benefit !== undefined) {
+    lines.push(`Benefit: ${benefit.toFixed(2)}`);
+  }
+
+  for (const param of params) {
+    const value = seriesValue(param.value);
+
+    if (value === null) continue;
+
+    if (param.seriesName === "Benefit") {
+      lines.push(`${param.marker} ${param.seriesName}: ${value.toFixed(2)}`);
+      continue;
+    }
+
+    if (param.seriesName === "Plug-in Confidence") {
+      const percentage = (value * 100).toFixed(0);
+
+      lines.push(`${param.marker} ${param.seriesName}: ${percentage}%`);
+      continue;
+    }
+
+    lines.push(`${param.marker} ${param.seriesName}: ${value}`);
+  }
+
+  return lines.join("<br/>");
+}
+
 const chartOptions = computed(() => {
-  if (!selectedVehicle.value) return {};
+  const vehicle = selectedVehicle.value;
+
+  if (!vehicle) return {};
 
   return {
     tooltip: {
       trigger: "axis",
-      formatter: (params: unknown) => {
-        if (!Array.isArray(params) || params.length === 0) return "";
-
-        const index = params[0]?.dataIndex ?? 0;
-        const forecast = activeForecast.value[index];
-
-        if (!forecast) return "";
-
-        const lines = [
-          `<strong>${formatDateTimeDeDe(forecast.timestamp)}</strong>`,
-          `Price: ${forecast.price.toFixed(2)} €/kWh`,
-          `Solar: ${forecast.solar.toFixed(1)} kWh`,
-          `Plug-in confidence: ${(forecast.confidence * 100).toFixed(0)}%`,
-        ];
-
-        const benefit = benefitByTimestamp.value.get(forecast.timestamp);
-
-        if (benefit !== undefined) {
-          lines.push(`Benefit: ${benefit.toFixed(2)}`);
-        }
-
-        for (const param of params) {
-          const value = seriesValue(param.value);
-
-          if (value === null) continue;
-
-          if (param.seriesName === "Benefit") {
-            lines.push(
-              `${param.marker} ${param.seriesName}: ${value.toFixed(2)}`,
-            );
-            continue;
-          }
-
-          if (param.seriesName === "Plug-in Confidence") {
-            lines.push(
-              `${param.marker} ${param.seriesName}: ${(value * 100).toFixed(0)}%`,
-            );
-            continue;
-          }
-
-          lines.push(`${param.marker} ${param.seriesName}: ${value}`);
-        }
-
-        return lines.join("<br/>");
-      },
+      formatter: formatTooltip,
     },
     legend: {
       top: 0,
@@ -271,7 +310,7 @@ const chartOptions = computed(() => {
       { top: 450, height: 90, left: 60, right: 120 },
       { top: 580, height: 90, left: 60, right: 120 },
     ],
-    xAxis: Array.from({ length: 5 }, (_, index) => ({
+    xAxis: Array.from({ length: chartGridCount }, (_, index) => ({
       type: "value",
       gridIndex: index,
       min: 0,
@@ -281,11 +320,9 @@ const chartOptions = computed(() => {
         show: false,
       },
       axisLabel: {
-        show: index === 4,
+        show: index === chartGridCount - 1,
         formatter: (value: number) => {
-          if (!Number.isInteger(value)) {
-            return "";
-          }
+          if (!Number.isInteger(value)) return "";
 
           return chartAxisLabels.value[value] ?? "";
         },
@@ -408,17 +445,17 @@ const chartOptions = computed(() => {
           symbol: "none",
           data: [
             {
-              yAxis: selectedVehicle.value.targetSoc,
+              yAxis: vehicle.targetSoc,
               name: "Target SoC",
               label: {
-                formatter: `Target SoC ${selectedVehicle.value.targetSoc}%`,
+                formatter: `Target SoC ${vehicle.targetSoc}%`,
               },
             },
             {
               xAxis: targetTimeChartPosition.value,
               name: "Target Time",
               label: {
-                formatter: `Target time ${formatDateTimeDeDe(selectedVehicle.value.targetTime)}`,
+                formatter: `Target time ${formatDateTimeDeDe(vehicle.targetTime)}`,
               },
             },
           ],
@@ -433,8 +470,18 @@ function addVehicle(vehicle: NamedVehicle) {
   selectedVehicleName.value = vehicle.name;
 }
 
+function handleForecastSourceChange(source: ForecastSource | null) {
+  forecastUploadError.value = null;
+  selectedForecastSource.value = source;
+}
+
 function openForecastUpload() {
   fileInputRef.value?.click();
+}
+
+function clearUploadedForecast() {
+  uploadedForecast.value = null;
+  uploadedForecastName.value = null;
 }
 
 async function handleForecastUpload(event: Event) {
@@ -459,9 +506,8 @@ async function handleForecastUpload(event: Event) {
     uploadedForecastName.value = file.name;
     selectedForecastSource.value = "uploaded";
   } catch (error) {
-    uploadedForecast.value = null;
-    uploadedForecastName.value = null;
-    selectedForecastSource.value = "default";
+    clearUploadedForecast();
+    selectedForecastSource.value = null;
 
     forecastUploadError.value =
       error instanceof Error ? error.message : "Could not read forecast file.";
@@ -477,15 +523,17 @@ async function handleForecastUpload(event: Event) {
       <div class="actions">
         <div class="action-group">
           <v-select
-            v-model="selectedForecastSource"
+            :model-value="selectedForecastSource"
             :items="forecastSourceOptions"
             item-title="title"
             item-value="value"
             label="Forecast"
+            placeholder="Select forecast"
             density="compact"
             variant="outlined"
             hide-details
             class="forecast-select"
+            @update:model-value="handleForecastSourceChange"
           />
 
           <input
@@ -509,7 +557,7 @@ async function handleForecastUpload(event: Event) {
         <div class="action-group">
           <v-select
             v-model="selectedVehicleName"
-            :items="vehicles.map((vehicle) => vehicle.name)"
+            :items="vehicleNames"
             label="Vehicle"
             density="compact"
             variant="outlined"
@@ -518,7 +566,7 @@ async function handleForecastUpload(event: Event) {
           />
 
           <CreateVehicleDialog
-            :existing-vehicle-names="vehicles.map((vehicle) => vehicle.name)"
+            :existing-vehicle-names="vehicleNames"
             @create="addVehicle"
           />
         </div>
@@ -531,6 +579,7 @@ async function handleForecastUpload(event: Event) {
       variant="tonal"
       class="mt-4"
       closable
+      icon="mdi-alert-circle"
       @click:close="forecastUploadError = null"
     >
       {{ forecastUploadError }}
@@ -579,19 +628,19 @@ async function handleForecastUpload(event: Event) {
     </v-alert>
 
     <v-alert
-      v-if="selectedVehicle && !scheduleValidationError"
+      v-if="canShowChart"
       color="deep-purple"
       variant="tonal"
       class="mt-4"
     >
       <p>
         <strong>Probability of reaching target SoC:</strong>
-        {{ (targetSocProbability! * 100).toFixed(1) }}%
+        {{ formattedTargetSocProbability }}
       </p>
     </v-alert>
 
     <VChart
-      v-if="selectedVehicle && !scheduleValidationError"
+      v-if="canShowChart"
       class="chart mt-8"
       :option="chartOptions"
       autoresize
