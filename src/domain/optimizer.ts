@@ -51,7 +51,7 @@ function getTotalScheduledEnergyKwh(slots: ChargingSlot[]): number {
 }
 
 /**
- * Expected delivered energy, weighted by plug-in confidence.
+ * Expected delivered energy multiplied by plug-in confidence.
  */
 function getExpectedEnergyKwh(slots: ChargingSlot[]): number {
   return sum(slots.map((slot) => getSlotEnergyKwh(slot) * slot.confidence));
@@ -79,13 +79,14 @@ function createInitialChargingSlots(
   const requestedEnergyKwh = getTotalScheduledEnergyKwh(slotsWithDurationHours);
 
   const capacityScale =
-    requestedEnergyKwh > remainingCapacityKwh
-      ? remainingCapacityKwh / requestedEnergyKwh
+    requestedEnergyKwh > 0
+      ? Math.min(1, remainingCapacityKwh / requestedEnergyKwh)
       : 1;
 
   return slotsWithDurationHours.map((slot) => ({
     ...slot,
-    chargingPowerKw: slot.chargingPowerKw * capacityScale,
+    chargingPowerKw:
+      slot.durationHours === 0 ? 0 : slot.chargingPowerKw * capacityScale,
   }));
 }
 
@@ -99,9 +100,9 @@ function boostChargingPower(
 ): ChargingSlot[] {
   return slots.map((slot) => ({
     ...slot,
-    chargingPowerKw: Math.min(
-      slot.chargingPowerKw * boostRatio,
-      maxChargingPowerKw,
+    chargingPowerKw: Math.max(
+      0,
+      Math.min(slot.chargingPowerKw * boostRatio, maxChargingPowerKw),
     ),
   }));
 }
@@ -124,9 +125,11 @@ function increasePowerToReachTarget(
       break;
     }
 
+    const boostRatio = requiredEnergyKwh / expectedEnergyKwh;
+
     adjustedSlots = boostChargingPower(
       adjustedSlots,
-      requiredEnergyKwh / expectedEnergyKwh,
+      boostRatio,
       maxChargingPowerKw,
     );
   }
@@ -135,32 +138,10 @@ function increasePowerToReachTarget(
 }
 
 /**
- * Ensures the schedule does not charge more energy than the battery can accept.
- * Keeps the relative charging distribution between slots unchanged.
- */
-function capScheduleToBatteryCapacity(
-  slots: ChargingSlot[],
-  remainingCapacityKwh: number,
-): ChargingSlot[] {
-  const totalEnergyKwh = getTotalScheduledEnergyKwh(slots);
-
-  if (totalEnergyKwh <= remainingCapacityKwh) {
-    return slots;
-  }
-
-  const scale = remainingCapacityKwh / totalEnergyKwh;
-
-  return slots.map((slot) => ({
-    ...slot,
-    chargingPowerKw: slot.chargingPowerKw * scale,
-  }));
-}
-
-/**
  * Generates a charging schedule that:
- * - prefers cheap, solar-rich, and reliable hours,
- * - tries to reach the target SoC with high confidence,
- * - never exceeds the vehicle's max charging power,
+ * - scores forecast hours by benefit (how attractive the hour is to charge the vehicle)
+ * - iterates to increase the charging power until the expected energy reaches the required energy,
+ * - never exceeds the vehicle's maximum charging power,
  * - never schedules more energy than the battery capacity allows.
  */
 export function generateChargingSchedule(
@@ -173,7 +154,6 @@ export function generateChargingSchedule(
     (forecast) => new Date(forecast.timestamp).getTime() <= targetTimeMs,
   );
 
-  // Until here, OK
   const scoredHours = scoreForecastHours(forecastsBeforeTarget);
 
   const remainingCapacityKwh = remainingBatteryCapacityKwh(vehicle);
@@ -187,8 +167,6 @@ export function generateChargingSchedule(
     remainingCapacityKwh,
   );
 
-  console.log("requiredEnergyKwh", requiredEnergyKwh);
-
   const initialSlots = createInitialChargingSlots(
     vehicle,
     scoredHours,
@@ -201,24 +179,8 @@ export function generateChargingSchedule(
     vehicle.maxChargingPower,
   );
 
-  const finalSlots = capScheduleToBatteryCapacity(
-    boostedSlots,
-    remainingCapacityKwh,
-  );
-
-  const slotsByHour = new Map(finalSlots.map((slot) => [slot.hour, slot]));
-
-  return [...scoredHours]
-    .sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    )
-    .map((hour) => {
-      const slot = slotsByHour.get(hour.timestamp);
-
-      return {
-        hour: hour.timestamp,
-        chargingPower: round(slot?.chargingPowerKw ?? 0),
-      };
-    });
+  return boostedSlots.map((slot) => ({
+    hour: slot.hour,
+    chargingPower: round(slot.chargingPowerKw),
+  }));
 }
