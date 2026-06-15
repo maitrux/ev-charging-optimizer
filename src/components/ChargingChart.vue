@@ -586,7 +586,7 @@ async function handleForecastUpload(event: Event) {
     >
       <p>
         <strong>Probability of reaching target SoC:</strong>
-        {{ (targetSocProbability! * 100).toFixed(0) }}%
+        {{ (targetSocProbability! * 100).toFixed(1) }}%
       </p>
     </v-alert>
 

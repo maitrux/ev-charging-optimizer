@@ -43,7 +43,7 @@ try {
       calculateTargetSocReachProbability(vehicle, schedule, forecasts);
 
     console.error(
-      `Probability to reach target SoC: ${(targetSocProbability * 100).toFixed(0)}%`,
+      `Probability to reach target SoC: ${(targetSocProbability * 100).toFixed(1)}%`,
     );
   }
 } catch (error) {
