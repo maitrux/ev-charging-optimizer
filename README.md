@@ -6,25 +6,25 @@ Goal: Reduce energy costs while maximizing local solar use, with uncertainty fac
 
 ## Approach
 
-For each forecast hour in the planning window, the optimizer calculates a benefit score from 0 to 1 that indicates how favorable the hour is for charging. Charging energy is then distributed across the hours in proportion to these benefit scores.
+For each forecast hour in the planning window, the optimizer calculates a benefit score from 0 to 1 that indicates how favorable the hour is for charging.
 
 1. **Solar** — more available solar raises the score.
 2. **Price** — cheaper grid electricity raises the score.
 3. **Confidence** — higher plug-in probability raises the score.
 
-Charging power in each hour is then set proportionally:
+Calculate charginPower for each hour:
 
 ```
 chargingPower = maxChargingPower × benefit
 ```
-
-If the sum of planned energy exceeds the remaining battery capacity, all hours are scaled down uniformly so the total fits.
 
 **Target time** is a hard deadline: only forecast hours whose start is on or before the target are considered. Sub-hour targets are supported.
 
 **Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
 **Probability to reach target SoC** — after the schedule is built, we also calculate how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered.
+
+After having calculated the initial charging plan, the optmizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done maximum 10 times.
 
 ## Project structure
 
@@ -129,13 +129,30 @@ flowchart LR
 
   P --> NP[Invert + normalize<br/>cheap = high]
   SO --> NS[Normalize<br/>more solar = high]
-  NP --> COMB[benefit = solar × price x confidence]
+  NP --> COMB[benefit = normalize(solar × price) x confidence]
   NS --> COMB
   COMB --> BEN[Normalize benefit to 0–1]
   BEN --> OUT[chargingPower = maxPower × benefit]
 ```
 
 
+
+## Iterate until target SoC is reached
+
+1. For each hour, calculate the expected energy:
+
+```
+expectedEnergy = chargingPower × plug-in confidence
+```
+
+1. Calculate the total expected energy (sum of all hours).
+2. If the total expected value is at least equal to the missing energy to reach the target SoC, stop. Otherwise, increase the charging power for each hour by a factor of:
+
+```
+boostFactor = missingEnergy / totalExpectedEnergy
+```
+
+1. Repeat steps 1-3 until the target SoC is reached. Itearate maximum 10 times.
 
 ## How to run the progam
 
@@ -229,8 +246,6 @@ pnpm run test
 pnpm test:coverage
 ```
 
-
-
 [TODO: add the screenshot of the test coverage here]
 
 ## Key assumptions
@@ -242,20 +257,20 @@ pnpm test:coverage
 ## Trade-offs
 
 
-| Decision                            | Benefit                                 | Cost                                                                   |
-| ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------- |
-| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm                                                   |
-| Combined solar × price x confidence | Balances the three goals in one ranking | No explicit split between free solar and paid grid during optimization |
-| No iteration                        | Simplicity                              | Target SoC might not be reached                                        |
+| Decision                            | Benefit                                 | Cost                                                                                                                       |
+| ----------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g. if target time is very close to the first forecast hour.          |
+| Combined solar × price x confidence | Balances the three goals in one ranking | Scores benefit to 0 if solar 0 --> doesn't allocate charging power even though price would be low.                         |
+| All-or-nothing iteration            | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery |
 
 
 ## Limitations
 
-- max 24 hour forecast
-- no negative electricity prices (in Finland possible)
-- price and solar coefficients are equal: could be modified, also confidence could be emphasized
-- probability calculation: with a large number of hours --> calculating the probability would take too long (O(2^n))
-- no iteration (mention problematic vehicle in UI where probability of reaching target SoC is 0%)
+- Constrain of maximum 24 hour forecast
+- The algorithm doesn't allow negative electricity prices. Negative electricity prices are at least possible in Finland.
+- Price, solar and confidence coefficients are equal. These could be emphasized by different factors.
+- O(2^n) probability calculation. Works with a 24 hour dataset but would take too long with with a large number of forecast hours.
+- Algorithm doesn't work for the edge case where the target time is too close to the first forecast hour.
 
 ## Tech stack
 
