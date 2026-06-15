@@ -51,10 +51,36 @@ function getTotalScheduledEnergyKwh(slots: ChargingSlot[]): number {
 }
 
 /**
- * Expected delivered energy multiplied by plug-in confidence.
+ * Calculates expected delivered energy by weighting each slot's energy
+ * with the probability that the vehicle is connected.
  */
 function getExpectedEnergyKwh(slots: ChargingSlot[]): number {
   return sum(slots.map((slot) => getSlotEnergyKwh(slot) * slot.confidence));
+}
+
+/**
+ * Ensures the schedule never charges more energy than the battery can still accept.
+ *
+ * If the total scheduled energy exceeds the remaining battery capacity,
+ * all charging powers are scaled down proportionally while preserving the
+ * relative distribution between charging slots.
+ */
+function scaleToBatteryCapacity(
+  slots: ChargingSlot[],
+  remainingCapacityKwh: number,
+): ChargingSlot[] {
+  const totalEnergyKwh = getTotalScheduledEnergyKwh(slots);
+
+  if (totalEnergyKwh <= remainingCapacityKwh) {
+    return slots;
+  }
+
+  const capacityScale = remainingCapacityKwh / totalEnergyKwh;
+
+  return slots.map((slot) => ({
+    ...slot,
+    chargingPowerKw: slot.chargingPowerKw * capacityScale,
+  }));
 }
 
 function createInitialChargingSlots(
@@ -62,32 +88,27 @@ function createInitialChargingSlots(
   scoredHours: ScoredForecastHour[],
   remainingCapacityKwh: number,
 ): ChargingSlot[] {
-  const slotsWithDurationHours = scoredHours.map((hour) => {
+  const slots = scoredHours.map((hour) => {
     const durationHours = getChargingSlotDurationHours(
       hour.timestamp,
       vehicle.targetTime,
     );
 
+    let chargingPowerKw = 0;
+
+    if (durationHours > 0) {
+      chargingPowerKw = vehicle.maxChargingPower * hour.benefit;
+    }
+
     return {
       hour: hour.timestamp,
       confidence: hour.confidence,
-      chargingPowerKw: vehicle.maxChargingPower * hour.benefit,
+      chargingPowerKw,
       durationHours,
     };
   });
 
-  const requestedEnergyKwh = getTotalScheduledEnergyKwh(slotsWithDurationHours);
-
-  const capacityScale =
-    requestedEnergyKwh > 0
-      ? Math.min(1, remainingCapacityKwh / requestedEnergyKwh)
-      : 1;
-
-  return slotsWithDurationHours.map((slot) => ({
-    ...slot,
-    chargingPowerKw:
-      slot.durationHours === 0 ? 0 : slot.chargingPowerKw * capacityScale,
-  }));
+  return scaleToBatteryCapacity(slots, remainingCapacityKwh);
 }
 
 /**
@@ -98,19 +119,20 @@ function boostChargingPower(
   boostRatio: number,
   maxChargingPowerKw: number,
 ): ChargingSlot[] {
-  return slots.map((slot) => ({
-    ...slot,
-    chargingPowerKw: Math.max(
-      0,
-      Math.min(slot.chargingPowerKw * boostRatio, maxChargingPowerKw),
-    ),
-  }));
+  return slots.map((slot) => {
+    let chargingPowerKw = slot.chargingPowerKw * boostRatio;
+
+    if (chargingPowerKw > maxChargingPowerKw) {
+      chargingPowerKw = maxChargingPowerKw;
+    }
+
+    return {
+      ...slot,
+      chargingPowerKw,
+    };
+  });
 }
 
-/**
- * Tries to increase the schedule until the expected energy
- * reaches the required energy.
- */
 function increasePowerToReachTarget(
   slots: ChargingSlot[],
   requiredEnergyKwh: number,
@@ -122,6 +144,8 @@ function increasePowerToReachTarget(
   for (let i = 0; i < MAX_BOOST_ITERATIONS; i++) {
     const expectedEnergyKwh = getExpectedEnergyKwh(adjustedSlots);
 
+    // Stop once the expected energy is sufficient or no further progress
+    // can be made.
     if (expectedEnergyKwh >= requiredEnergyKwh || expectedEnergyKwh <= 0) {
       break;
     }
@@ -134,11 +158,16 @@ function increasePowerToReachTarget(
       maxChargingPowerKw,
     );
 
-    if (getTotalScheduledEnergyKwh(boostedSlots) > remainingCapacityKwh) {
+    // Boosting can increase the total scheduled energy beyond the remaining
+    // battery capacity. Scale the entire schedule down proportionally so
+    // that the battery capacity constraint is still respected.
+    adjustedSlots = scaleToBatteryCapacity(boostedSlots, remainingCapacityKwh);
+
+    // If the battery is already fully allocated, further iterations can only
+    // redistribute energy and will not increase the total scheduled energy.
+    if (getTotalScheduledEnergyKwh(adjustedSlots) >= remainingCapacityKwh) {
       break;
     }
-
-    adjustedSlots = boostedSlots;
   }
 
   return adjustedSlots;
@@ -169,10 +198,11 @@ export function generateChargingSchedule(
     return [];
   }
 
-  const requiredEnergyKwh = Math.min(
-    minimumRequiredEnergyKwh(vehicle),
-    remainingCapacityKwh,
-  );
+  let requiredEnergyKwh = minimumRequiredEnergyKwh(vehicle);
+
+  if (requiredEnergyKwh > remainingCapacityKwh) {
+    requiredEnergyKwh = remainingCapacityKwh;
+  }
 
   const initialSlots = createInitialChargingSlots(
     vehicle,
