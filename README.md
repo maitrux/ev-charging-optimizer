@@ -174,7 +174,7 @@ pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 
 You can also replace these example files with your own files.
 
-The assignment requires a charging schedule array as output. The implementation additionally calculates the probability of reaching the target SoC. The probability can be output with option `--show-probability`.
+The assignment requires a charging schedule array as output. The implementation can additionally calculate and display the probability of reaching the target SoC with option `--show-probability`.
 
 Example output:
 
@@ -207,22 +207,22 @@ Run the following comand:
 pnpm dev
 ```
 
-Open the URL shown in the terminal. Usually [http://localhost:5173/](http://localhost:5173/).
+Open the URL shown in the terminal, usually [http://localhost:5173/](http://localhost:5173/).
 
-You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles. Note: this implemenation only supports a maximum 24h forecast.
+You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles. Note: this implementation only supports forecast up to 24 hours.
 
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
 
 
-| Field              | Type   | Description                                                  |
-| ------------------ | ------ | ------------------------------------------------------------ |
-| `batteryCapacity`  | number | Max capacity in kWh                                          |
-| `currentSoc`       | number | Starting SoC in %                                            |
-| `targetSoc`        | number | Minimum required SoC by target time (validated; shown in UI) |
-| `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
-| `maxChargingPower` | number | Max charger power in kW                                      |
+| Field              | Type   | Description                                          |
+| ------------------ | ------ | ---------------------------------------------------- |
+| `batteryCapacity`  | number | Max capacity in kWh                                  |
+| `currentSoc`       | number | Starting SoC in %                                    |
+| `targetSoc`        | number | Minimum required SoC by target time                  |
+| `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC) |
+| `maxChargingPower` | number | Max charger power in kW                              |
 
 
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
@@ -256,27 +256,27 @@ pnpm test:coverage
 
 ## Key assumptions
 
-- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20).
-- **Sub-hour target times** — the hour bucket whose start is on or before the target is included (i.e., if the target time is at 12:20, the maximum charging power is 1/3 of the maximum charing power of that hour).
+- **Hourly slots** — for the duration of each hour, the electricity price, solar procution and plug-in confidence are constant.
+- **Sub-hour target times** — the hour bucket whichs starts on or before the target is included (e.g., if the target time is at 12:20, the maximum charging power is 1/3 of the maximum charging power of that hour).
 
 ## Trade-offs
 
 
-| Decision                            | Benefit                                 | Cost                                                                                                                        |
-| ----------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g. if target time is very close to the first forecast hour.           |
-| Combined solar × price x confidence | Balances the three goals in one ranking | Zero solar generation results in a score of zero, preventing charging even though the price would be low.                   |
-| All-or-nothing iteration            | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery. |
+| Decision                                                     | Benefit                                 | Cost                                                                                                                        |
+| ------------------------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Benefit-weighted proportional power                          | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g., if target time is very close to the first forecast hour.          |
+| Combined solar × price x confidence                          | Balances the three goals in one ranking | Zero solar generation results in a score of zero, preventing charging even though the price would be low.                   |
+| All-or-nothing iteration when additional energy is allocated | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery. |
 
 
 ## Limitations
 
-- Constrain of maximum 24 hour forecast
-- The algorithm doesn't allow negative electricity prices as inputs. Negative electricity prices are at least possible in Finland.
-- Price, solar and confidence coefficients are equal. These could be emphasized by different coefficients.
+- Constraint of forecast up to 24 hours
+- The algorithm doesn't allow negative electricity prices as inputs. Negative electricity prices are possible at least in Finland.
+- Price, solar and plug-in confidence coefficients are equal. These could be weighed with coefficients.
 - O(2^n) probability calculation. Works still with a 24 hour dataset but would take too long with a large number of forecast hours.
-- The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting can increase charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC. As a solution, `boostRatio` could be multiplied by a coefficient to compensate for the missing energy and distribute a larger share of charging power to the remaining available slots.
-- The algorithm doesn't work for the edge case where the target time is very close to the first forecast hour.
+- The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting increases charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC. As a solution, `boostRatio` could be multiplied by a coefficient (>1) to compensate for the missing energy and distribute a larger share of charging power to the remaining available slots. Finding an appropriate value for this coefficient would require substantial investigation.
+- If all the hours have 0 solar energy (which is not impossible), then no charging at all would occur. This may be the worst limitation  of this implementation. 
 
 ## Tech stack
 
