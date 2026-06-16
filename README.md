@@ -20,9 +20,9 @@ chargingPower = maxChargingPower × benefit
 
 **Target time** is a hard deadline: only forecast hours whose start is on or before the target are considered. Sub-hour targets are supported.
 
-**Target SoC** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
+**Target state of charge (SoC)** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
-**Probability to reach target SoC** — after the schedule is built, we also calculate how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered.
+**Probability to reach target SoC** — after the schedule is built, the program also calculates how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered to reach the tartget SoC.
 
 After having calculated the initial charging plan, the optmizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done at most 10 times.
 
@@ -46,6 +46,10 @@ src/
 └── tests/                # Vitest unit tests
     ├── for-each-boolean-combination.test.ts
     └── target-soc-probability.test.ts
+    └── optimizer.test.ts
+    └── validation.test.ts
+    └── scoring.test.ts
+    └── datetime.test.ts
 examples/
 ├── sample-vehicle.json
 └── sample-forecast.json
@@ -113,6 +117,8 @@ flowchart TB
   UI --> CHART[ECharts visualization]
 ```
 
+
+
 ## Scoring model
 
 How a single forecast hour becomes a benefit score:
@@ -133,6 +139,8 @@ flowchart LR
   BEN --> OUT["chargingPower = maxPower x benefit"]
 ```
 
+
+
 ## Iterate until target SoC is reached
 
 1. For each hour, calculate the expected energy:
@@ -148,7 +156,7 @@ expectedEnergy = chargingPower × plug-in confidence
 boostFactor = missingEnergy / totalExpectedEnergy
 ```
 
-1. Repeat steps 1-3 until the target SoC is reached. Itearate at most 10 times.
+Repeat steps 1-3 until the target SoC is reached. Itearate at most 10 times.
 
 ## How to run the progam
 
@@ -164,7 +172,7 @@ pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 
 You can also replace these example files with your own files.
 
-The assignment requires a charging schedule array as output. The implementation additionally calculates statistics such as probability of reaching the target SoC. These are exposed via a separate verbose mode.
+The assignment requires a charging schedule array as output. The implementation additionally calculates the probability of reaching the target SoC. The probability can be logged in a separate verbose mode.
 
 Example output:
 
@@ -197,13 +205,14 @@ Run the following comand:
 pnpm dev
 ```
 
-Open the URL shown in the terminal.
+Open the URL shown in the terminal. Usually [http://localhost:5173/](http://localhost:5173/).
 
-You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles.
+You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles. Note: this implemenation only supports a maximum 24h forecast.
 
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
+
 
 | Field              | Type   | Description                                                  |
 | ------------------ | ------ | ------------------------------------------------------------ |
@@ -213,7 +222,9 @@ You can either use the provided sample data or upload your own forecast data (as
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
 | `maxChargingPower` | number | Max charger power in kW                                      |
 
+
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
+
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -222,7 +233,8 @@ You can either use the provided sample data or upload your own forecast data (as
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
 
-Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and (for the CLI/UI) target time within the forecast window.
+
+Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and target time within the forecast window.
 
 ## How is the program tested
 
@@ -242,26 +254,27 @@ pnpm test:coverage
 
 ## Key assumptions
 
-- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20)
-- **Sub-hour target times** — the hour bucket whose start is on or before the target is included.
-- **Perfect foresight** — no real-time re-optimization.
+- **Hourly slots** — each forecast entry is one hour; charging power is constant within the slot (i.e., charging power at 12:00 is the same as at 12:20).
+- **Sub-hour target times** — the hour bucket whose start is on or before the target is included (i.e., if the target time is at 12:20, the maximum charging power is 1/3 of the maximum charing power of that hour).
 
 ## Trade-offs
 
-| Decision                            | Benefit                                 | Cost                                                                                                                       |
-| ----------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g. if target time is very close to the first forecast hour.          |
-| Combined solar × price x confidence | Balances the three goals in one ranking | Scores benefit to 0 if solar 0 --> doesn't allocate charging power even though price would be low.                         |
-| All-or-nothing iteration            | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery |
+
+| Decision                            | Benefit                                 | Cost                                                                                                                        |
+| ----------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g. if target time is very close to the first forecast hour.           |
+| Combined solar × price x confidence | Balances the three goals in one ranking | Zero solar generation results in a score of zero, preventing charging even though the price would be low.                   |
+| All-or-nothing iteration            | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery. |
+
 
 ## Limitations
 
 - Constrain of maximum 24 hour forecast
 - The algorithm doesn't allow negative electricity prices as inputs. Negative electricity prices are at least possible in Finland.
 - Price, solar and confidence coefficients are equal. These could be emphasized by different coefficients.
-- O(2^n) probability calculation. Works with a 24 hour dataset but would take too long with a large number of forecast hours.
-- The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting can increase charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC.
-- Algorithm doesn't work for the edge case where the target time is too close to the first forecast hour.
+- O(2^n) probability calculation. Works still with a 24 hour dataset but would take too long with a large number of forecast hours.
+- The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting can increase charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC. As a solution, `boostRatio` could be multiplied by a coefficient to compensate for the missing energy and distribute a larger share of charging power to the remaining available slots.
+- The algorithm doesn't work for the edge case where the target time is very close to the first forecast hour.
 
 ## Tech stack
 
@@ -269,3 +282,4 @@ pnpm test:coverage
 - **Vue 3 + Vuetify** — web UI
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
+
