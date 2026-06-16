@@ -24,7 +24,7 @@ export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
 
 /**
  * Calculates the probability of delivering at least the required amount of
- * energy by considering all possible connection outcomes.
+ * energy by evaluating all possible connection outcomes.
  *
  * For each charging slot:
  * - A successful connection occurs with probability p(i) and delivers the
@@ -32,14 +32,16 @@ export function minimumRequiredEnergyKwh(vehicle: Vehicle): number {
  * - A failed connection occurs with probability 1 - p(i) and delivers no
  *   energy.
  *
- * The probabilities of all outcomes that meet or exceed the required energy
- * are summed together.
+ * The probability of every outcome that delivers at least the required
+ * amount of energy is summed to produce the final result.
  *
- * @param chargingSlots - Charging slots with connection probabilities and energy.
- * @param requiredEnergyKwh - Minimum energy needed to reach the target SoC.
- * @returns Probability of reaching the target SoC, between 0 and 1.
+ * @param chargingSlots - Charging slots with connection probabilities and
+ * scheduled energy delivery.
+ * @param requiredEnergyKwh - Minimum energy that must be delivered to reach the target SoC.
+ * @returns Probability of delivering at least the required energy,
+ * between 0 and 1.
  */
-export function calculateTargetSocProbability(
+export function calculateEnergyDeliveryProbability(
   chargingSlots: ChargingSlot[],
   requiredEnergyKwh: number,
 ): number {
@@ -82,16 +84,19 @@ export function calculateTargetSocProbability(
 }
 
 /**
- * Calculates the probability of reaching the vehicle's target state of charge
- * based on the planned charging schedule and connection forecasts.
+ * Calculates the probability of reaching the vehicle's target SoC.
  *
- * The schedule is converted into charging slots containing:
- * - The forecasted probability of a successful connection.
- * - The amount of energy that would be delivered if connected.
+ * The charging schedule and forecast data are converted into charging slots,
+ * each containing:
+ * - The probability of a successful connection.
+ * - The amount of energy delivered if the connection succeeds.
+ *
+ * The required energy to reach the target SoC is then calculated and passed
+ * to the energy delivery probability calculation.
  *
  * @param vehicle - Vehicle configuration and charging target.
  * @param schedule - Planned charging schedule.
- * @param forecasts - Connection probability forecasts per time slot.
+ * @param forecasts - Connection probability forecasts for each time slot.
  * @returns Probability of reaching the target SoC, between 0 and 1.
  */
 export function calculateTargetSocReachProbability(
@@ -122,5 +127,5 @@ export function calculateTargetSocReachProbability(
 
   const requiredEnergyKwh = minimumRequiredEnergyKwh(vehicle);
 
-  return calculateTargetSocProbability(chargingSlots, requiredEnergyKwh);
+  return calculateEnergyDeliveryProbability(chargingSlots, requiredEnergyKwh);
 }

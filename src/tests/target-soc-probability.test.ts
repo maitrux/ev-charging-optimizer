@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Vehicle } from "../domain/models";
 import {
-  calculateTargetSocProbability,
+  calculateEnergyDeliveryProbability,
   calculateTargetSocReachProbability,
   minimumRequiredEnergyKwh,
 } from "../domain/target-soc-probability";
@@ -22,7 +22,7 @@ describe("minimumRequiredEnergyKwh", () => {
 
 describe("calculateTargetSocProbability", () => {
   it("matches the two-hour example from the specification", () => {
-    const probability = calculateTargetSocProbability(
+    const probability = calculateEnergyDeliveryProbability(
       [
         { connectionProbability: 0.7, energyKwh: 3 },
         { connectionProbability: 0.4, energyKwh: 6 },
@@ -34,7 +34,7 @@ describe("calculateTargetSocProbability", () => {
   });
 
   it("returns 1 when no additional energy is required", () => {
-    const probability = calculateTargetSocProbability(
+    const probability = calculateEnergyDeliveryProbability(
       [{ connectionProbability: 0.5, energyKwh: 5 }],
       0,
     );
@@ -43,13 +43,13 @@ describe("calculateTargetSocProbability", () => {
   });
 
   it("returns 0 when there are no charging slots", () => {
-    const probability = calculateTargetSocProbability([], 10);
+    const probability = calculateEnergyDeliveryProbability([], 10);
 
     expect(probability).toBe(0);
   });
 
   it("returns the connection probability for a single sufficient slot", () => {
-    const probability = calculateTargetSocProbability(
+    const probability = calculateEnergyDeliveryProbability(
       [{ connectionProbability: 0.65, energyKwh: 8 }],
       5,
     );
@@ -58,7 +58,7 @@ describe("calculateTargetSocProbability", () => {
   });
 
   it("ignores zero-power slots", () => {
-    const withZeroPower = calculateTargetSocProbability(
+    const withZeroPower = calculateEnergyDeliveryProbability(
       [
         { connectionProbability: 0.7, energyKwh: 3 },
         { connectionProbability: 0.5, energyKwh: 0 },
@@ -67,7 +67,7 @@ describe("calculateTargetSocProbability", () => {
       5,
     );
 
-    const withoutZeroPower = calculateTargetSocProbability(
+    const withoutZeroPower = calculateEnergyDeliveryProbability(
       [
         { connectionProbability: 0.7, energyKwh: 3 },
         { connectionProbability: 0.4, energyKwh: 6 },
@@ -137,7 +137,7 @@ describe("calculateTargetSocReachProbability", () => {
       },
     ]);
 
-    const expected = calculateTargetSocProbability(
+    const expected = calculateEnergyDeliveryProbability(
       [
         { connectionProbability: 0.7, energyKwh: 3 },
         { connectionProbability: 0, energyKwh: 6 },
