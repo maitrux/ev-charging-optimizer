@@ -22,37 +22,38 @@ chargingPower = maxChargingPower × benefit
 
 **Target state of charge (SoC)** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
-**Probability to reach target SoC** — after the schedule is built, the program also calculates how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. We add up the probability of every outcome where enough energy is delivered to reach the tartget SoC.
+**Probability to reach target SoC** — after the schedule is built, the program also calculates how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. The progam adds up the probability of every outcome where enough energy is delivered to reach the tartget SoC.
 
-After having calculated the initial charging plan, the optmizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done at most 10 times.
+After having calculated the initial charging plan, the optimizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done at most 10 times.
 
 ## Project structure
 
 ```
 src/
-├── domain/
-│   ├── models.ts                        # Vehicle, ForecastHour, ScheduleEntry types
-│   ├── validation.ts                    # JSON parsing and input validation
-│   ├── scoring.ts                       # Hour benefit scoring
-│   ├── optimizer.ts                     # Schedule generation
-│   ├── for-each-boolean-combination.ts  # Enumerates all 2^n probability outcomes
-│   ├── target-soc-probability.ts        # Target SoC reach probability
-│   └── datetime.ts                      # UTC ↔ local time helpers (UI)
-├── cli/index.ts          # Command-line interface
+├── cli/index.ts                         # Command-line interface
 ├── components/
-│   ├── ChargingChart.vue       # Visualization of the charging schedule
-│   └── CreateVehicleDialog.vue # Add vehicle form
-├── data/                 # Sample vehicles and forecast
-└── tests/                # Vitest unit tests
+│   ├── ChargingChart.vue                # Visualization of the charging schedule
+│   └── CreateVehicleDialog.vue          # Add vehicle form
+├── data/                                # Sample vehicles and forecast
+├── domain/
+│   ├── datetime.ts                      # UTC ↔ local time helpers (UI)
+│   ├── for-each-boolean-combination.ts  # Enumerates all 2^n probability outcomes
+│   ├── models.ts                        # Vehicle, ForecastHour, ScheduleEntry types
+│   ├── optimizer.ts                     # Schedule generation
+│   ├── scoring.ts                       # Hour benefit scoring
+│   ├── target-soc-probability.ts        # Target SoC reach probability
+│   └── validation.ts                    # JSON parsing and input validation
+└── tests/
+    ├── datetime.test.ts
     ├── for-each-boolean-combination.test.ts
-    └── target-soc-probability.test.ts
-    └── optimizer.test.ts
+    ├── optimizer.test.ts
+    ├── scoring.test.ts
+    ├── target-soc-probability.test.ts
     └── validation.test.ts
-    └── scoring.test.ts
-    └── datetime.test.ts
+
 examples/
-├── sample-vehicle.json
-└── sample-forecast.json
+├── sample-forecast.json
+└── sample-vehicle.json
 ```
 
 ## Architecture
@@ -133,10 +134,13 @@ flowchart LR
 
   P --> NP["Invert + normalize<br/>cheap = high"]
   SO --> NS["Normalize<br/>more solar = high"]
-  NP --> COMB["benefit = normalizedSolar x normalizedPrice x confidence"]
+
+  NP --> COMB["benefit = normalizedSolar × normalizedPrice × confidence"]
   NS --> COMB
+  C --> COMB
+
   COMB --> BEN["Normalize benefit to 0-1"]
-  BEN --> OUT["chargingPower = maxPower x benefit"]
+  BEN --> OUT["chargingPower = maxPower × benefit"]
 ```
 
 
@@ -236,9 +240,9 @@ You can either use the provided sample data or upload your own forecast data (as
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and target time within the forecast window.
 
-## How is the program tested
+## How the program is tested
 
-All typescript files are covered by unit tests.
+All TypeScript files are covered by unit tests.
 
 ## How to run the tests
 
