@@ -6,13 +6,36 @@ export interface ForecastHour {
 }
 
 export interface Vehicle {
+  /** Maximum battery capacity in kWh. */
   batteryCapacity: number;
+  /** Starting state of charge in percent. */
   currentSoc: number;
+  /** Minimum required state of charge in percent by target time. Charging may continue beyond this when prices are favorable, up to 100%. */
   targetSoc: number;
+  /** Time by which targetSoc must be reached. */
+  targetTime: string;
+  /** Maximum charging power in kW. */
   maxChargingPower: number;
 }
 
+export interface NamedVehicle extends Vehicle {
+  name: string;
+}
+
 export interface ScheduleEntry {
-  timestamp: string;
+  /**
+   * Start time of the charging slot as an ISO timestamp.
+   *
+   *
+   * NOTE: 'timestamp' would be a more descriptive name for this property.
+   * However, output property 'hour' was requested in the take-home assignment.
+   */
+  hour: string;
+  /** Scheduled charging power in kW. */
   chargingPower: number;
+}
+
+export interface ScoredForecastHour extends ForecastHour {
+  /** Value between 0 and 1 indicating the benefit of charging in this hour. */
+  benefit: number;
 }
