@@ -118,6 +118,8 @@ flowchart TB
   UI --> CHART[ECharts visualization]
 ```
 
+
+
 ## Scoring model
 
 How a single forecast hour becomes a benefit score:
@@ -141,16 +143,15 @@ flowchart LR
   BEN --> OUT["chargingPower = maxPower × benefit"]
 ```
 
+
+
 ## Iterate until target SoC is reached
 
 1. For each hour, calculate the expected energy:
-
-   ```ts
+  ```ts
    expectedEnergy = chargingPower × plug-in confidence
-   ```
-
+  ```
 2. Calculate the total expected energy by summing all hours.
-
 3. If the total expected value is at least equal to the missing energy required to reach the target SoC, stop. Otherwise, increase the charging power for each hour by a factor of:
 
 ```
@@ -173,7 +174,7 @@ pnpm run cli -- examples/sample-forecast.json examples/sample-vehicle.json
 
 You can also replace these example files with your own files.
 
-The assignment requires a charging schedule array as output. The implementation additionally calculates the probability of reaching the target SoC. The probability can be logged in a separate verbose mode.
+The assignment requires a charging schedule array as output. The implementation additionally calculates the probability of reaching the target SoC. The probability can be output with option `--show-probability`.
 
 Example output:
 
@@ -187,7 +188,7 @@ Example output:
 Run the following command to additionally see the probability of reaching the target SoC:
 
 ```bash
-pnpm run cli -- --verbose examples/sample-forecast.json examples/sample-vehicle.json
+pnpm run cli -- --show-probability examples/sample-forecast.json examples/sample-vehicle.json
 ```
 
 ```json
@@ -214,6 +215,7 @@ You can either use the provided sample data or upload your own forecast data (as
 
 **Vehicle** (`examples/sample-vehicle.json`):
 
+
 | Field              | Type   | Description                                                  |
 | ------------------ | ------ | ------------------------------------------------------------ |
 | `batteryCapacity`  | number | Max capacity in kWh                                          |
@@ -222,7 +224,9 @@ You can either use the provided sample data or upload your own forecast data (as
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC)         |
 | `maxChargingPower` | number | Max charger power in kW                                      |
 
+
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
+
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -230,6 +234,7 @@ You can either use the provided sample data or upload your own forecast data (as
 | `price`      | number | Electricity price in €/kWh      |
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
+
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and target time within the forecast window.
 
@@ -256,11 +261,13 @@ pnpm test:coverage
 
 ## Trade-offs
 
+
 | Decision                            | Benefit                                 | Cost                                                                                                                        |
 | ----------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Benefit-weighted proportional power | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g. if target time is very close to the first forecast hour.           |
 | Combined solar × price x confidence | Balances the three goals in one ranking | Zero solar generation results in a score of zero, preventing charging even though the price would be low.                   |
 | All-or-nothing iteration            | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery. |
+
 
 ## Limitations
 
@@ -277,3 +284,4 @@ pnpm test:coverage
 - **Vue 3 + Vuetify** — web UI
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
+

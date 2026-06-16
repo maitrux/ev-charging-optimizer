@@ -15,15 +15,13 @@ if (args[0] === "--") {
   args.shift();
 }
 
-const verbose = args.includes("--verbose") || args.includes("-v");
-const positionalArgs = args.filter(
-  (arg) => arg !== "--verbose" && arg !== "-v",
-);
+const showProbability = args.includes("--show-probability");
+const positionalArgs = args.filter((arg) => arg !== "--show-probability");
 const [forecastPath, vehiclePath] = positionalArgs;
 
 if (!forecastPath || !vehiclePath) {
   console.error(
-    "Usage: pnpm run cli [--] [--verbose|-v] <forecast.json> <vehicle.json>",
+    "Usage: pnpm run cli [--] [--show-probability] <forecast.json> <vehicle.json>",
   );
   process.exit(1);
 }
@@ -38,7 +36,7 @@ try {
 
   console.log(JSON.stringify(schedule, null, 2));
 
-  if (verbose) {
+  if (showProbability) {
     const targetSocProbability = calculateTargetSocReachProbability(
       vehicle,
       schedule,
