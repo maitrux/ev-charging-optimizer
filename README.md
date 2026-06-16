@@ -12,7 +12,7 @@ For each forecast hour in the planning window, the optimizer calculates a benefi
 2. **Price** — cheaper grid electricity raises the score.
 3. **Confidence** — higher plug-in probability raises the score.
 
-Calculate charginPower for each hour:
+Calculate charging power for each hour:
 
 ```
 chargingPower = maxChargingPower × benefit
@@ -22,9 +22,9 @@ chargingPower = maxChargingPower × benefit
 
 **Target state of charge (SoC)** is validated on input and shown in the UI as a reference line. The optimizer itself plans energy up to the remaining battery capacity (toward 100%), not strictly to `targetSoC`.
 
-**Probability to reach target SoC** — after the schedule is built, the program also calculates how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. The progam adds up the probability of every outcome where enough energy is delivered to reach the tartget SoC.
+**Probability to reach target SoC** — after the schedule is built, the program also calculates how likely it is that the vehicle will actually reach `targetSoC`. For each charging hour, the plug-in may succeed (delivering the planned energy) or fail (delivering nothing), according to that hour's confidence. The program adds up the probability of every outcome where enough energy is delivered to reach the target SoC.
 
-After having calculated the initial charging plan, the optimizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optmizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done at most 10 times.
+After having calculated the initial charging plan, the optimizer evaluates whether the sum of the hourly expected energies is at least equal to the required energy to reach the target SoC. If not, the optimizer multiplies the charging power of each hour with a booster value. The iteration to reach the target SoC is done at most 10 times.
 
 ## Project structure
 
@@ -118,8 +118,6 @@ flowchart TB
   UI --> CHART[ECharts visualization]
 ```
 
-
-
 ## Scoring model
 
 How a single forecast hour becomes a benefit score:
@@ -143,14 +141,14 @@ flowchart LR
   BEN --> OUT["chargingPower = maxPower × benefit"]
 ```
 
-
-
 ## Iterate until target SoC is reached
 
 1. For each hour, calculate the expected energy:
-  ```ts
-   expectedEnergy = chargingPower × plug-in confidence
-  ```
+
+```ts
+ expectedEnergy = chargingPower × plug-in confidence
+```
+
 2. Calculate the total expected energy by summing all hours.
 3. If the total expected value is at least equal to the missing energy required to reach the target SoC, stop. Otherwise, increase the charging power for each hour by a factor of:
 
@@ -158,9 +156,9 @@ flowchart LR
 boostFactor = missingEnergy / totalExpectedEnergy
 ```
 
-Repeat steps 1-3 until the target SoC is reached. Itearate at most 10 times.
+Repeat steps 1-3 until the target SoC is reached. Iterate at most 10 times.
 
-## How to run the progam
+## How to run the program
 
 Requires [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) (npm also works).
 
@@ -209,12 +207,11 @@ pnpm dev
 
 Open the URL shown in the terminal, usually [http://localhost:5173/](http://localhost:5173/).
 
-You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles. Note: this implementation only supports forecast up to 24 hours.
+You can either use the provided sample data or upload your own forecast data (as JSON) and create test vehicles. Note: this implementation only supports forecasts up to 24 hours.
 
 ### Input format
 
 **Vehicle** (`examples/sample-vehicle.json`):
-
 
 | Field              | Type   | Description                                          |
 | ------------------ | ------ | ---------------------------------------------------- |
@@ -222,11 +219,9 @@ You can either use the provided sample data or upload your own forecast data (as
 | `currentSoc`       | number | Starting SoC in %                                    |
 | `targetSoc`        | number | Minimum required SoC by target time                  |
 | `targetTime`       | string | ISO 8601 deadline (minutes supported, stored in UTC) |
-| `maxChargingPower` | number | Max charger power in kW                              |
-
+| `maxChargingPower` | number | Max charging power in kW                             |
 
 **Forecast** (`examples/sample-forecast.json`) — array of hourly entries:
-
 
 | Field        | Type   | Description                     |
 | ------------ | ------ | ------------------------------- |
@@ -234,7 +229,6 @@ You can either use the provided sample data or upload your own forecast data (as
 | `price`      | number | Electricity price in €/kWh      |
 | `solar`      | number | Available solar energy in kWh   |
 | `confidence` | number | Plug-in probability from 0 to 1 |
-
 
 Both files are validated on load: required fields, numeric ranges, chronological unique timestamps, and target time within the forecast window.
 
@@ -254,21 +248,18 @@ pnpm test:coverage
 
 <img width="834" height="307" alt="image" src="https://github.com/user-attachments/assets/85f459fe-8262-452b-8068-0968367c4f4e" />
 
-
 ## Key assumptions
 
-- **Hourly slots** — for the duration of each hour, the electricity price, solar procution and plug-in confidence are constant.
+- **Hourly slots** — for the duration of each hour, the electricity price, solar production and plug-in confidence are constant.
 - **Sub-hour target times** — the hour bucket whichs starts on or before the target is included (e.g., if the target time is at 12:20, the maximum charging power is 1/3 of the maximum charging power of that hour).
 
 ## Trade-offs
-
 
 | Decision                                                     | Benefit                                 | Cost                                                                                                                        |
 | ------------------------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Benefit-weighted proportional power                          | Simple, easy to understand              | Simplistic algorithm. Doesn't cover all edge-cases, e.g., if target time is very close to the first forecast hour.          |
 | Combined solar × price x confidence                          | Balances the three goals in one ranking | Zero solar generation results in a score of zero, preventing charging even though the price would be low.                   |
 | All-or-nothing iteration when additional energy is allocated | Simplicity                              | Doesn't allocate any additional energy if the sum of the energy of all hours exceeds the remaining capacity of the battery. |
-
 
 ## Limitations
 
@@ -277,7 +268,7 @@ pnpm test:coverage
 - Price, solar and plug-in confidence coefficients are equal. These could be weighed with coefficients.
 - O(2^n) probability calculation. Works still with a 24 hour dataset but would take too long with a large number of forecast hours.
 - The target SoC cannot be reached through boosting. The highest-benefit hours are already charging at the vehicle's maximum power, so boosting has no effect on those slots. Although boosting increases charging power during lower-benefit hours and therefore deliver some additional energy, the gain is insufficient to reach the target SoC. As a solution, `boostRatio` could be multiplied by a coefficient (>1) to compensate for the missing energy and distribute a larger share of charging power to the remaining available slots. Finding an appropriate value for this coefficient would require substantial investigation.
-- If all the hours have 0 solar energy (which is not impossible), then no charging at all would occur. This may be the worst limitation  of this implementation. 
+- If all the hours have 0 solar energy (which is not impossible), then no charging at all would occur. This may be the worst limitation of this implementation.
 
 ## Tech stack
 
@@ -285,4 +276,3 @@ pnpm test:coverage
 - **Vue 3 + Vuetify** — web UI
 - **ECharts** — schedule visualization
 - **Vitest** — unit tests
-
