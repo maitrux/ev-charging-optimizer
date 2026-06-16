@@ -65,11 +65,9 @@ describe("parseForecastJson", () => {
   });
 
   it("reports generic parse failures that are not syntax errors", () => {
-    const parseSpy = vi
-      .spyOn(JSON, "parse")
-      .mockImplementation(() => {
-        throw new TypeError("unexpected token");
-      });
+    const parseSpy = vi.spyOn(JSON, "parse").mockImplementation(() => {
+      throw new TypeError("unexpected token");
+    });
 
     expect(() => parseForecastJson("[]")).toThrow(
       "Invalid JSON in Forecast file: could not parse JSON",
@@ -90,7 +88,7 @@ describe("parseForecastJson", () => {
     ).toThrow('Forecast entry 1: Missing required field "solar".');
   });
 
-  it("reports wrong field types", () => {
+  it("rejects a forecast timestamp with the wrong type", () => {
     expect(() =>
       parseForecastJson(
         '[{"timestamp":123,"price":0.2,"solar":1,"confidence":0.5}]',
@@ -121,25 +119,19 @@ describe("parseForecastJson", () => {
       parseForecastJson(
         '[{"timestamp":"not-a-date","price":0.2,"solar":1,"confidence":0.5}]',
       ),
-    ).toThrow(
-      'Forecast entry 1: "timestamp" must be an ISO 8601 timestamp',
-    );
+    ).toThrow('Forecast entry 1: "timestamp" must be an ISO 8601 timestamp');
 
     expect(() =>
       parseForecastJson(
         '[{"timestamp":"2026","price":0.32,"solar":0,"confidence":1}]',
       ),
-    ).toThrow(
-      'Forecast entry 1: "timestamp" must be an ISO 8601 timestamp',
-    );
+    ).toThrow('Forecast entry 1: "timestamp" must be an ISO 8601 timestamp');
 
     expect(() =>
       parseForecastJson(
         '[{"timestamp":"2026-06-10","price":0.32,"solar":0,"confidence":1}]',
       ),
-    ).toThrow(
-      'Forecast entry 1: "timestamp" must be an ISO 8601 timestamp',
-    );
+    ).toThrow('Forecast entry 1: "timestamp" must be an ISO 8601 timestamp');
   });
 
   it("rejects negative price and solar values", () => {
@@ -147,17 +139,13 @@ describe("parseForecastJson", () => {
       parseForecastJson(
         '[{"timestamp":"2026-06-10T10:00:00Z","price":-0.1,"solar":1,"confidence":0.5}]',
       ),
-    ).toThrow(
-      'Forecast entry 1: "price" must be greater than or equal to 0.',
-    );
+    ).toThrow('Forecast entry 1: "price" must be greater than or equal to 0.');
 
     expect(() =>
       parseForecastJson(
         '[{"timestamp":"2026-06-10T10:00:00Z","price":0.2,"solar":-1,"confidence":0.5}]',
       ),
-    ).toThrow(
-      'Forecast entry 1: "solar" must be greater than or equal to 0.',
-    );
+    ).toThrow('Forecast entry 1: "solar" must be greater than or equal to 0.');
   });
 
   it("rejects confidence outside 0 and 1", () => {
@@ -182,9 +170,7 @@ describe("parseForecastJson", () => {
         {"timestamp":"2026-06-10T10:00:00Z","price":0.2,"solar":1,"confidence":0.5},
         {"timestamp":"2026-06-10T10:00:00Z","price":0.3,"solar":1,"confidence":0.5}
       ]`),
-    ).toThrow(
-      'Forecast entry 2: Duplicate timestamp "2026-06-10T10:00:00Z".',
-    );
+    ).toThrow('Forecast entry 2: Duplicate timestamp "2026-06-10T10:00:00Z".');
   });
 
   it("rejects out-of-order timestamps", () => {
@@ -209,7 +195,7 @@ describe("parseForecastJson", () => {
     expect(() =>
       parseForecastJson(`[
         {"timestamp":"2026-06-10T20:00:00Z","price":0.2,"solar":1,"confidence":0.5},
-        {"timestamp":"2026-06-11T20:00:00Z","price":0.3,"solar":1,"confidence":0.5}
+        {"timestamp":"2026-06-11T19:00:00Z","price":0.3,"solar":1,"confidence":0.5}
       ]`),
     ).not.toThrow();
   });
@@ -253,7 +239,7 @@ describe("parseVehicleJson", () => {
     ).toThrow('Vehicle file: Missing required field "targetSoc".');
   });
 
-  it("reports wrong field types", () => {
+  it("rejects a vehicle battery capacity with the wrong type", () => {
     expect(() =>
       parseVehicleJson(
         '{"batteryCapacity":"75","currentSoc":30,"targetSoc":80,"targetTime":"2026-06-10T16:00:00Z","maxChargingPower":11}',
@@ -261,7 +247,7 @@ describe("parseVehicleJson", () => {
     ).toThrow('Vehicle file: "batteryCapacity" must be a finite number.');
   });
 
-  it("rejects invalid target time dates", () => {
+  it("rejects invalid target time timestamps", () => {
     expect(() =>
       parseVehicleJson(
         '{"batteryCapacity":75,"currentSoc":30,"targetSoc":80,"targetTime":"not-a-date","maxChargingPower":11}',
@@ -353,10 +339,12 @@ describe("validateTargetTimeWithinForecast", () => {
   ];
 
   it("accepts a target time within the forecast range", () => {
-    expect(() => validateTargetTimeWithinForecast(vehicle, forecasts)).not.toThrow();
+    expect(() =>
+      validateTargetTimeWithinForecast(vehicle, forecasts),
+    ).not.toThrow();
   });
 
-  it("accepts a target time within an unsorted forecast range", () => {
+  it("accepts a target time within the forecast range even when entries are unsorted", () => {
     const unsortedForecasts: ForecastHour[] = [
       {
         timestamp: "2026-06-10T14:00:00Z",
