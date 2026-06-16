@@ -252,7 +252,8 @@ pnpm run test
 pnpm test:coverage
 ```
 
-[TODO: add the screenshot of the test coverage here]
+<img width="834" height="307" alt="image" src="https://github.com/user-attachments/assets/85f459fe-8262-452b-8068-0968367c4f4e" />
+
 
 ## Key assumptions
 
